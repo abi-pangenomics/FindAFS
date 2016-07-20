@@ -20,6 +20,6 @@ public class Graph {
     int[][] starts;
     int maxStart;
     int[] length;
-    TreeSet<Integer>[] nodePaths;
+    int[][] nodePaths;
 
 }

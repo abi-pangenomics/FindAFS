@@ -106,10 +106,6 @@ public class ReadInput {
             g.length[i] = nodeLength.get(i);
         }
 
-        g.nodePaths = new TreeSet[g.numNodes];
-        for (int i = 0; i < g.nodePaths.length; i++) {
-            g.nodePaths[i] = new TreeSet<Integer>();
-        }
         return g;
     }
 
