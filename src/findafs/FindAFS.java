@@ -39,7 +39,7 @@ public class FindAFS implements Runnable {
     static String filePrefix = ""; // file name prefix
     static int maxExploreNodes;
     static int maxSolns;
-    
+
     static void readData() {
         g = ReadInput.readDotFile(filePrefix + ".dot");
         sequences = ReadInput.readFastaFile(filePrefix + ".fa");
@@ -53,6 +53,7 @@ public class FindAFS implements Runnable {
                 startToNode.put(g.starts[i][j], i);
             }
         }
+        g.starts = null; // no longer need this.
 
         ArrayList<ArrayList<Integer>> pathsAL = new ArrayList<ArrayList<Integer>>();
         int curStart = 1;
@@ -78,10 +79,30 @@ public class FindAFS implements Runnable {
             paths[i] = new int[path.size()];
             for (int j = 0; j < path.size(); j++) {
                 paths[i][j] = path.get(j);
-                g.nodePaths[path.get(j)].add(i);
             }
-            //System.out.println("path " + nextNodeToAdd + ": " + Arrays.toString(paths[nextNodeToAdd]));
         }
+        pathsAL.clear();
+
+        TreeMap<Integer, TreeSet<Integer>> nodePaths = new TreeMap<Integer, TreeSet<Integer>>();
+        for (int i = 0; i < g.numNodes; i++) {
+            nodePaths.put(i, new TreeSet<Integer>());
+        }
+
+        for (int i = 0; i < paths.length; i++) {
+            for (int j = 0; j < paths[i].length; j++) {
+                nodePaths.get(paths[i][j]).add(i);
+            }
+        }
+        g.nodePaths = new int[g.numNodes][];
+        for (int i = 0; i < g.numNodes; i++) {
+            g.nodePaths[i] = new int[nodePaths.get(i).size()];
+            int j = 0;
+            for (Integer pobj : nodePaths.get(i)) {
+                g.nodePaths[i][j++] = pobj;
+            }
+        }
+
+        //System.out.println("path " + nextNodeToAdd + ": " + Arrays.toString(paths[nextNodeToAdd]));
         for (int i = 0; i < g.numNodes; i++) {
             //System.out.println("node " + nextNodeToAdd + " paths: " + g.nodePaths[nextNodeToAdd]);
         }
@@ -201,7 +222,9 @@ public class FindAFS implements Runnable {
 
     void computeSupport(AFSNode afsNode) {
         TreeSet<Integer> pathSet = new TreeSet<Integer>();
-        pathSet.addAll(g.nodePaths[afsNode.node]);
+        for (int i = 0; i < g.nodePaths[afsNode.node].length; i++) {
+            pathSet.add(g.nodePaths[afsNode.node][i]);
+        }
         if (afsNode.parent != null) {
             for (PathSegment ps : afsNode.parent.supportingSegments) {
                 pathSet.add(ps.path);
@@ -346,8 +369,6 @@ public class FindAFS implements Runnable {
 
     public static void main(String[] args) {
 
-
-
         // parse args:
         if (args.length != 7) {
             System.out.println("Usage: java findAFS K eps_r mu_i eps_c filePrefix maxExploreNodes maxSolns");
@@ -361,7 +382,7 @@ public class FindAFS implements Runnable {
         filePrefix = args[4];
         maxExploreNodes = Integer.parseInt(args[5]);
         maxSolns = Integer.parseInt(args[6]);
-        
+
         readData();
         buildPaths();
 
@@ -385,7 +406,7 @@ public class FindAFS implements Runnable {
             ex.printStackTrace();
             System.exit(-1);
         }
-        
+
         // write results:
         writeBED();
     }
