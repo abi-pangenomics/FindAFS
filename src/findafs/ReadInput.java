@@ -123,7 +123,7 @@ public class ReadInput {
                 if (nextLine.contains(">")) { // new sequence
                     String label = nextLine.substring(1, nextLine.length());
                     Sequence nextSeq = new Sequence();
-                    nextSeq.label = label;
+                    nextSeq.label = label.split(" ")[0]; // get what is left of first space
                     //nextSeq.seq = "";
                     nextSeq.length = 0;
                     sequences.add(nextSeq);
