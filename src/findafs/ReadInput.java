@@ -31,10 +31,10 @@ public class ReadInput {
         try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
             String line;
             while ((line = br.readLine()) != null) {
-                linesRead++;
-                if (linesRead % 50000 == 0) {
-                    System.out.println("linesRead: " + linesRead);
-                }
+//                linesRead++;
+//                if (linesRead % 100000 == 0) {
+//                    System.out.println("linesRead: " + linesRead);
+//                }
 
                 Scanner lineScanner;
                 if (line.contains("label")) { //node

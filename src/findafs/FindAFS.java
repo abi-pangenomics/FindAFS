@@ -47,6 +47,26 @@ public class FindAFS implements Runnable {
         sequences = ReadInput.readFastaFile(filePrefix + ".fa");
     }
 
+    static int[] removeDuplicates(int[] a) {
+        int[] b = null;
+
+        if (a.length > 0) {
+            ArrayList<Integer> B = new ArrayList<Integer>();
+            B.add(a[0]);
+            for (int i = 1; i < a.length; i++) {
+                if (a[i] != B.get(B.size() - 1)) {
+                    B.add(a[i]);
+                }
+            }
+            int i = 0;
+            b = new int[B.size()];
+            for (Integer pobj : B) {
+                b[i++] = pobj;
+            }
+        }
+        return b;
+    }
+
     static void buildPaths() {
         //System.out.println("g.maxStart: " + g.maxStart);
         startToNode = new TreeMap<Integer, Integer>();
@@ -84,29 +104,38 @@ public class FindAFS implements Runnable {
             }
         }
         pathsAL.clear();
+        pathsAL = null; // can be gc'ed
 
-        TreeMap<Integer, TreeSet<Integer>> nodePaths = new TreeMap<Integer, TreeSet<Integer>>();
+        System.out.println("finding node paths");
+
+        // find paths for each node:
+        int[] len = new int[g.numNodes];
         for (int i = 0; i < g.numNodes; i++) {
-            nodePaths.put(i, new TreeSet<Integer>());
+            len[i] = 0;
         }
 
         for (int i = 0; i < paths.length; i++) {
             for (int j = 0; j < paths[i].length; j++) {
-                nodePaths.get(paths[i][j]).add(i);
+                len[paths[i][j]]++;
             }
-        }
-        g.nodePaths = new int[g.numNodes][];
-        for (int i = 0; i < g.numNodes; i++) {
-            g.nodePaths[i] = new int[nodePaths.get(i).size()];
-            int j = 0;
-            for (Integer pobj : nodePaths.get(i)) {
-                g.nodePaths[i][j++] = pobj;
-            }
+            //System.out.println("path " + i + ": " + Arrays.toString(paths[i]));
         }
 
-        //System.out.println("path " + nextNodeToAdd + ": " + Arrays.toString(paths[nextNodeToAdd]));
+        g.nodePaths = new int[g.numNodes][];
         for (int i = 0; i < g.numNodes; i++) {
-            //System.out.println("node " + nextNodeToAdd + " paths: " + g.nodePaths[nextNodeToAdd]);
+            g.nodePaths[i] = new int[len[i]];
+            len[i] = 0;
+        }
+
+        for (int i = 0; i < paths.length; i++) {
+            for (int j = 0; j < paths[i].length; j++) {
+                g.nodePaths[paths[i][j]][len[paths[i][j]]++] = i;
+            }
+        }
+        for (int i = 0; i < g.numNodes; i++) {
+            if (g.nodePaths[i] != null) {
+                g.nodePaths[i] = removeDuplicates(g.nodePaths[i]);
+            }
         }
     }
 
@@ -232,6 +261,10 @@ public class FindAFS implements Runnable {
                 pathSet.add(p);
             }
         }
+        if (pathSet.size() > 100) {
+            System.out.println("pathset size: " + pathSet.size());
+        }
+
         ArrayList<PathSegment> supportingSegments = findMaximalSegments(afsNode, pathSet);
         epsCFilter(afsNode, supportingSegments);
 
@@ -255,7 +288,8 @@ public class FindAFS implements Runnable {
     void expand(AFSNode parentNode) {
         for (int i = 0; i < g.neighbor[parentNode.node].length; i++) {
             int neighbor = g.neighbor[parentNode.node][i];
-            if (!parentNode.contains(neighbor)) { // only consider simple paths
+            if (!parentNode.contains(neighbor) && // only consider simple paths
+                    g.nodePaths[neighbor] != null) {
                 AFSNode neighborAFSNode = new AFSNode();
                 neighborAFSNode.node = neighbor;
                 neighborAFSNode.parent = parentNode;
@@ -269,7 +303,9 @@ public class FindAFS implements Runnable {
 
     void exploreSolns() { // executed by each thread:
         for (int nextNodeToAdd = 0; nextNodeToAdd < g.numNodes; nextNodeToAdd++) {
-            if (nextNodeToAdd % numThreads == myThreadNum) {
+            if (nextNodeToAdd % numThreads == myThreadNum
+                    && g.nodePaths[nextNodeToAdd] != null
+                    && g.nodePaths[nextNodeToAdd].length >= eps_c * minSup) {
                 AFSNode newNode = new AFSNode();
                 newNode.parent = null;
                 newNode.node = nextNodeToAdd;
@@ -341,14 +377,15 @@ public class FindAFS implements Runnable {
 
         for (PathSegment ps : supportingSegments) {
             System.out.println("from fasta seq: " + sequences.get(ps.path).label);
-            System.out.print("subpath: [");
-            for (int i = ps.start; i <= ps.stop; i++) {
-                if (i > ps.start) {
-                    System.out.print(",");
-                }
-                System.out.print(paths[ps.path][i]);
-            }
-            System.out.println("] support:" + ps.support);
+//            System.out.print("subpath: [");
+//            for (int i = ps.start; i <= ps.stop; i++) {
+//                if (i > ps.start) {
+//                    System.out.print(",");
+//                }
+//                System.out.print(paths[ps.path][i]);
+//            }
+            System.out.println("support:" + ps.support);
+            System.out.println("length (nodes): " + (ps.stop - ps.start + 1));
             System.out.print("fasta location: ");
             int[] startStop = findFastaLoc(ps);
             System.out.println(startStop[0] + "," + startStop[1]);
