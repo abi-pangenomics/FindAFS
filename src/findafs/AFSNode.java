@@ -17,8 +17,10 @@ public class AFSNode implements Comparable<AFSNode> {
 
     int node;
     AFSNode parent;
-    ArrayList<PathSegment> supportingSegments;
-    double support;
+    int[] supportingPaths;
+    //ArrayList<PathSegment> supportingSegments;
+    float support;
+    
 
     public int compareTo(AFSNode other) {
         return Double.compare(other.support, support);

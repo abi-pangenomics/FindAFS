@@ -7,11 +7,12 @@ package findafs;
 
 import java.io.FileInputStream;
 import java.io.BufferedInputStream;
+import java.io.*;
 import java.util.Scanner;
 import java.util.TreeSet;
 import java.util.ArrayList;
 import java.util.TreeMap;
- 
+
 /**
  *
  * @author bmumey
@@ -24,35 +25,24 @@ public class ReadInput {
         TreeMap<Integer, TreeSet<Integer>> nodeNeighbors = new TreeMap<Integer, TreeSet<Integer>>();
         TreeMap<Integer, ArrayList<Integer>> nodeStarts = new TreeMap<Integer, ArrayList<Integer>>();
         TreeMap<Integer, Integer> nodeLength = new TreeMap<Integer, Integer>();
-        try {
-            Scanner scanner = new Scanner(new BufferedInputStream(new FileInputStream(fileName)));
-            Scanner lineScanner = new Scanner(scanner.nextLine());
-            lineScanner.useDelimiter(" ");
-            lineScanner.next();
-            g.name = lineScanner.next();
+        g.maxStart = 0;
+        int linesRead = 0;
 
-            g.maxStart = 0;
-
-            int linesRead = 0;
-            String prevLine = "xxx";
-            while (scanner.hasNextLine()) {
-                String nextLine = scanner.nextLine();
+        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+            String line;
+            while ((line = br.readLine()) != null) {
                 linesRead++;
-                if (linesRead % 20000 == 0) {
+                if (linesRead % 50000 == 0) {
                     System.out.println("linesRead: " + linesRead);
                 }
-                while (nextLine.equals(prevLine) && scanner.hasNextLine()) {
-                    nextLine = scanner.nextLine();
-                    linesRead++;
-                    if (linesRead % 20000 == 0) {
-                        System.out.println("linesRead: " + linesRead);
-                    }
-                }
-                prevLine = nextLine;
 
-                if (nextLine.contains("label")) { //node
-                    lineScanner = new Scanner(nextLine);
-                    int node = lineScanner.nextInt();
+                Scanner lineScanner;
+                if (line.contains("label")) { //node
+                    lineScanner = new Scanner(line);
+                    lineScanner.useDelimiter(" ");
+                    //System.out.println("line:" + line);
+                    lineScanner.next();
+                    int node = Integer.parseInt(lineScanner.next().trim());
                     nodeNeighbors.put(node, new TreeSet<Integer>());
                     String label = lineScanner.next();
                     label = label.split("\"")[1];
@@ -65,12 +55,12 @@ public class ReadInput {
                         g.maxStart = Math.max(g.maxStart, start);
                     }
                     nodeLength.put(node, Integer.parseInt(l[1]));
-                    if (node % 10000 == 0) {
+                    if (node % 50000 == 0) {
                         System.out.println("reading node: " + node);
                     }
                 }
-                if (nextLine.contains("->")) { //edge
-                    lineScanner = new Scanner(nextLine);
+                if (line.contains("->")) { //edge
+                    lineScanner = new Scanner(line);
                     lineScanner.useDelimiter("->");
                     int tail = Integer.parseInt(lineScanner.next().trim());
                     int head = Integer.parseInt(lineScanner.next().trim());
@@ -112,12 +102,11 @@ public class ReadInput {
     public static ArrayList<Sequence> readFastaFile(String fileName) {
 
         ArrayList<Sequence> sequences = new ArrayList<Sequence>();
-        try {
-            Scanner scanner = new Scanner(new BufferedInputStream(new FileInputStream(fileName)));
-            while (scanner.hasNextLine()) {
-                String nextLine = scanner.nextLine();
-                if (nextLine.contains(">")) { // new sequence
-                    String label = nextLine.substring(1, nextLine.length());
+        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.contains(">")) { // new sequence
+                    String label = line.substring(1, line.length());
                     Sequence nextSeq = new Sequence();
                     nextSeq.label = label.split(" ")[0]; // get what is left of first space
                     //nextSeq.seq = "";
@@ -125,7 +114,7 @@ public class ReadInput {
                     sequences.add(nextSeq);
                 } else { // sequence
                     Sequence lastSeq = sequences.get(sequences.size() - 1);
-                    lastSeq.length += nextLine.length();
+                    lastSeq.length += line.length();
                     //lastSeq.seq = lastSeq.seq + nextLine.toUpperCase();
                 }
             }
