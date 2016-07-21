@@ -261,9 +261,6 @@ public class FindAFS implements Runnable {
                 pathSet.add(p);
             }
         }
-        if (pathSet.size() > 100) {
-            System.out.println("pathset size: " + pathSet.size());
-        }
 
         ArrayList<PathSegment> supportingSegments = findMaximalSegments(afsNode, pathSet);
         epsCFilter(afsNode, supportingSegments);
