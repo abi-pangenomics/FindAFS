@@ -24,7 +24,7 @@ public class FindAFS implements Runnable {
     static TreeMap<Integer, Integer> startToNode;
 
     static int[][] paths;
-    static PriorityBlockingQueue<AFSNode> frontierQ;
+    static PriorityBlockingQueue<AFSNode> frontierQ, bestQ;
     static int numThreads;
     static int nodesExplored = 0;
 
@@ -79,19 +79,25 @@ public class FindAFS implements Runnable {
 
         ArrayList<ArrayList<Integer>> pathsAL = new ArrayList<ArrayList<Integer>>();
         int curStart = 1;
+        int seqStart = 1;
+        int seqEnd;
+        int prevStart = 0;
         for (Sequence s : sequences) {
-            s.startPos = curStart;
-            int lastPos = curStart + s.length - 1;
-            //System.out.println("curStart: " + curStart + " lastPos: " + lastPos);
+            s.startPos = seqStart;
+            seqEnd = seqStart + s.length - 1;
+
+            curStart = seqStart;
+            while (startToNode.get(curStart) == null) {
+                curStart++;
+                System.out.println("Problem: curStart: " + curStart);
+            }
             ArrayList path = new ArrayList<Integer>();
-            while (curStart + g.length[startToNode.get(curStart)] - 1 <= lastPos) {
+            while (curStart + g.length[startToNode.get(curStart)] - 1 < seqEnd) {
                 path.add(startToNode.get(curStart));
                 curStart += g.length[startToNode.get(curStart)] - (K - 1);
-                //System.out.println(curStart);
             }
-            //System.out.println("path found of length: " + path.size());
             pathsAL.add(path);
-            curStart = lastPos + 2; // shift curStart to next sequence
+            seqStart = seqEnd + 2;
         }
         System.out.println("number of paths: " + pathsAL.size());
 
@@ -285,15 +291,15 @@ public class FindAFS implements Runnable {
     void expand(AFSNode parentNode) {
         for (int i = 0; i < g.neighbor[parentNode.node].length; i++) {
             int neighbor = g.neighbor[parentNode.node][i];
-            if (!parentNode.contains(neighbor) && // only consider simple paths
-                    g.nodePaths[neighbor] != null) {
-                AFSNode neighborAFSNode = new AFSNode();
-                neighborAFSNode.node = neighbor;
-                neighborAFSNode.parent = parentNode;
-                computeSupport(neighborAFSNode);
+            if (!parentNode.contains(neighbor)
+                    && g.nodePaths[neighbor] != null // only consider simple paths
+                    && g.nodePaths[neighbor].length >= eps_c * minSup) {
+                AFSNode newNode = new AFSNode();
+                newNode.node = neighbor;
+                newNode.parent = parentNode;
+                computeSupport(newNode);
 
-                frontierQ.add(neighborAFSNode);
-                //bestQ.add(neighborAFSNode);
+                frontierQ.add(newNode);
             }
         }
     }
@@ -308,7 +314,6 @@ public class FindAFS implements Runnable {
                 newNode.node = nextNodeToAdd;
                 computeSupport(newNode);
 
-                //bestQ.add(newNode);
                 frontierQ.add(newNode);
                 if (nextNodeToAdd % 10000 == 0) {
                     System.out.println("nodes added: " + nextNodeToAdd);
@@ -316,21 +321,19 @@ public class FindAFS implements Runnable {
             }
         }
 
-        AFSNode top = frontierQ.poll();
-        while (top != null && nodesExplored < maxExploreNodes) {
+        AFSNode top;
+        while ((top = frontierQ.poll()) != null && nodesExplored < maxExploreNodes) {
             expand(top);
             nodesExplored++;
             if (nodesExplored % 10000 == 0) {
                 System.out.println("nodes explored: " + nodesExplored);
             }
-            top = frontierQ.poll();
         }
-
     }
 
     void findBestSolns() {
-        PriorityBlockingQueue<AFSNode> bestQ = new PriorityBlockingQueue<AFSNode>();
-        for (AFSNode leafNode : frontierQ) {
+        AFSNode leafNode;
+        while ((leafNode = frontierQ.poll()) != null) {
             AFSNode curNode = leafNode;
             while (curNode != null && curNode.support < minSup) {
                 curNode = curNode.parent;
@@ -339,17 +342,19 @@ public class FindAFS implements Runnable {
                 bestQ.add(curNode);
             }
         }
-        //System.out.println("bestq size:" + bestQ.size());
-        for (AFSNode bNode : bestQ) {
-            AFSNode curNode = bNode.parent;
-            while (curNode != null) {
-                bestQ.remove(curNode);
-                curNode = curNode.parent;
-            }
-        }
-        //System.out.println("bestq size:" + bestQ.size());
 
-        writeBED(bestQ);
+        if (myThreadNum == 0) {
+            System.out.println("single thread finishing up..");
+            for (AFSNode bNode : bestQ) {
+                AFSNode curNode = bNode.parent;
+                while (curNode != null) {
+                    bestQ.remove(curNode);
+                    curNode = curNode.parent;
+                }
+            }
+            // write results:
+            writeBED(bestQ);
+        }
     }
 
     static int[] findFastaLoc(PathSegment ps) {
@@ -438,11 +443,7 @@ public class FindAFS implements Runnable {
             System.exit(-1);
         }
         exploreSolns();
-
-        // write results:
-        if (myThreadNum == 0) {
-            findBestSolns();
-        }
+        findBestSolns();
     }
 
     public static void main(String[] args) {
@@ -466,6 +467,7 @@ public class FindAFS implements Runnable {
         buildPaths();
 
         frontierQ = new PriorityBlockingQueue<AFSNode>();
+        bestQ = new PriorityBlockingQueue<AFSNode>();
 
         // launch threads:
         numThreads = Runtime.getRuntime().availableProcessors();
