@@ -356,13 +356,18 @@ public class FindAFS implements Runnable {
                 System.exit(-1);
             }
             System.out.println("single thread finishing up..");
+            TreeSet<AFSNode> removeSet = new TreeSet<AFSNode>();
             for (AFSNode bNode : bestSLset) {
                 AFSNode curNode = bNode.parent;
                 while (curNode != null) {
-                    bestSLset.remove(curNode);
+                    removeSet.add(curNode);
                     curNode = curNode.parent;
                 }
             }
+            for (AFSNode rmNode : removeSet) {
+                bestSLset.remove(rmNode);
+            }
+            
             // write results:
             writeBED();
         }
