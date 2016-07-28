@@ -26,21 +26,14 @@ public class ReadInput {
         TreeMap<Integer, ArrayList<Integer>> nodeStarts = new TreeMap<Integer, ArrayList<Integer>>();
         TreeMap<Integer, Integer> nodeLength = new TreeMap<Integer, Integer>();
         g.maxStart = 0;
-        int linesRead = 0;
 
         try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
             String line;
             while ((line = br.readLine()) != null) {
-//                linesRead++;
-//                if (linesRead % 100000 == 0) {
-//                    System.out.println("linesRead: " + linesRead);
-//                }
-
                 Scanner lineScanner;
                 if (line.contains("label")) { //node
                     lineScanner = new Scanner(line);
                     lineScanner.useDelimiter(" ");
-                    //System.out.println("line:" + line);
                     lineScanner.next();
                     int node = Integer.parseInt(lineScanner.next().trim());
                     nodeNeighbors.put(node, new TreeSet<Integer>());
@@ -55,9 +48,9 @@ public class ReadInput {
                         g.maxStart = Math.max(g.maxStart, start);
                     }
                     nodeLength.put(node, Integer.parseInt(l[1]));
-                    if (node % 50000 == 0) {
-                        System.out.println("reading node: " + node);
-                    }
+//                    if (node % 50000 == 0) {
+//                        System.out.println("reading node: " + node);
+//                    }
                 }
                 if (line.contains("->")) { //edge
                     lineScanner = new Scanner(line);
@@ -73,8 +66,8 @@ public class ReadInput {
             ex.printStackTrace();
             System.exit(-1);
         }
-
         g.numNodes = nodeNeighbors.keySet().size();
+        System.out.println("number of nodes: " + g.numNodes);
         g.neighbor = new int[g.numNodes][];
         for (int i = 0; i < g.neighbor.length; i++) {
             g.neighbor[i] = new int[nodeNeighbors.get(i).size()];
