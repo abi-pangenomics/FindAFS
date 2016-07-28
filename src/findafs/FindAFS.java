@@ -344,7 +344,7 @@ public class FindAFS implements Runnable {
                 computeSupport(newNode);
 
                 frontierQ.add(newNode);
-                if (nextNodeToAdd % 10000 == 0) {
+                if (nextNodeToAdd % 20000 == 0) {
                     System.out.println("nodes added: " + nextNodeToAdd);
                 }
             }
@@ -354,7 +354,7 @@ public class FindAFS implements Runnable {
         while ((top = frontierQ.poll()) != null && nodesExplored < maxExploreNodes) {
             expand(top);
             nodesExplored++;
-            if (nodesExplored % 10000 == 0) {
+            if (nodesExplored % 20000 == 0) {
                 System.out.println("nodes explored: " + nodesExplored);
             }
         }
