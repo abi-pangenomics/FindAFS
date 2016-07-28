@@ -24,7 +24,7 @@ public class FindAFS implements Runnable {
     static ArrayList<Sequence> sequences;
     static TreeMap<Integer, Integer> startToNode;
     static int[][] paths;
-    
+
     static PriorityBlockingQueue<AFSNode> frontierQ;//, bestQ;
     static ConcurrentSkipListSet<AFSNode> bestSLset;
     static int numThreads;
@@ -151,6 +151,11 @@ public class FindAFS implements Runnable {
     static ArrayList<PathSegment> findMaximalSegments(AFSNode afsNode, TreeSet<Integer> pathSet) {
         ArrayList<PathSegment> segList = new ArrayList<PathSegment>();
         ArrayList<Integer> anchorPath = afsNode.getAnchorPath();
+        int anchorPathLen = 0;
+        for (Integer iobj : anchorPath) {
+            anchorPathLen += g.length[iobj];
+        }
+        anchorPathLen -= (K - 1) * (anchorPath.size() - 1);
 
         for (Integer iobj : pathSet) {
             int[] testPath = paths[iobj];
@@ -165,12 +170,35 @@ public class FindAFS implements Runnable {
             for (int j = 0; j < matchPos.size(); j++) {
                 boolean foundNew = false;
                 for (int k = Math.max(j, maxK + 1); k < matchPos.size(); k++) {
-                    int numMatches = (k - j) + 1;
-                    int segLength = (matchPos.get(k) - matchPos.get(j)) + 1;
-                    if (numMatches >= (1.0 - eps_r) * anchorPath.size() && // check eps_r and mu_i constraints
-                            (segLength - numMatches) <= mu_i) {
+                    //int numMatches = (k - j) + 1;
+                    int segLen = 0;
+                    for (int l = matchPos.get(j); l <= matchPos.get(k); l++) {
+                        segLen += g.length[testPath[l]];
+                    }
+                    segLen -= (K - 1) * (matchPos.get(k) - matchPos.get(j));
+
+                    int matchLen = 0;
+                    TreeSet<Integer> matchNodes = new TreeSet<Integer>();
+                    for (int l = j; l <= k; l++) {
+                        matchNodes.add(matchPos.get(l));
+                    }
+                    for (int l = 0; l < anchorPath.size(); l++) {
+                        if (matchNodes.contains(anchorPath.get(l))) {
+                            matchLen += g.length[anchorPath.get(l)];
+                        }
+                        if (l < anchorPath.size() - 1 && matchNodes.contains(anchorPath.get(l+1))) {
+                            matchLen -= (K-1);
+                        }
+                    }
+                    if (matchLen > anchorPathLen) {
+                        System.out.println("anchorPathLen: " + anchorPathLen + " segLen: " + segLen + " matchLen: " + matchLen);
+                    }
+                    // int segLength = (matchPos.get(k) - matchPos.get(j)) + 1;
+                    if (matchLen >= (1.0 - eps_r) * anchorPathLen && // check eps_r and mu_i constraints
+                            (segLen - matchLen) <= mu_i * anchorPathLen) {
                         maxK = k;
                         foundNew = true;
+                        System.out.println("anchorPathLen: " + anchorPathLen + " segLen: " + segLen + " matchLen: " + matchLen);
                     }
                 }
                 if (foundNew) {
@@ -178,7 +206,7 @@ public class FindAFS implements Runnable {
                     ps.path = iobj;
                     ps.start = matchPos.get(j);
                     ps.stop = matchPos.get(maxK);
-                    ps.support = 1.0;
+                    ps.support = 0.0;
                     segList.add(ps);
                 }
             }
@@ -367,7 +395,7 @@ public class FindAFS implements Runnable {
             for (AFSNode rmNode : removeSet) {
                 bestSLset.remove(rmNode);
             }
-            
+
             // write results:
             writeBED();
         }
