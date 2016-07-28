@@ -151,11 +151,10 @@ public class FindAFS implements Runnable {
     static ArrayList<PathSegment> findMaximalSegments(AFSNode afsNode, TreeSet<Integer> pathSet) {
         ArrayList<PathSegment> segList = new ArrayList<PathSegment>();
         ArrayList<Integer> anchorPath = afsNode.getAnchorPath();
-        int anchorPathLen = 0;
+        int anchorPathLen = (K - 1);
         for (Integer iobj : anchorPath) {
-            anchorPathLen += g.length[iobj] - (K-1);
+            anchorPathLen += g.length[iobj] - (K - 1);
         }
-        //anchorPathLen -= (K - 1) * (anchorPath.size() - 1);
 
         for (Integer iobj : pathSet) {
             int[] testPath = paths[iobj];
@@ -165,40 +164,39 @@ public class FindAFS implements Runnable {
                     matchPos.add(j);
                 }
             }
-            //int[][] mat = new int[matchPos.size()][matchPos.size()];
             int maxK = -1;
             for (int j = 0; j < matchPos.size(); j++) {
                 boolean foundNew = false;
                 for (int k = Math.max(j, maxK + 1); k < matchPos.size(); k++) {
                     //int numMatches = (k - j) + 1;
-                    int segLen = 0;
+                    int segLen = (K - 1);
                     for (int l = matchPos.get(j); l <= matchPos.get(k); l++) {
-                        segLen += g.length[testPath[l]] - (K-1);
+                        segLen += g.length[testPath[l]] - (K - 1);
                     }
-                    //segLen -= (K - 1) * (matchPos.get(k) - matchPos.get(j));
 
-                    int matchLen = 0;
                     TreeSet<Integer> matchNodes = new TreeSet<Integer>();
                     for (int l = j; l <= k; l++) {
-                        matchNodes.add(matchPos.get(l));
+                        matchNodes.add(testPath[matchPos.get(l)]);
                     }
+
+                    int matchLen = 0;
+                    int curStart = 1;
+                    int lastMatchEnd = 0;
                     for (int l = 0; l < anchorPath.size(); l++) {
                         if (matchNodes.contains(anchorPath.get(l))) {
-                            matchLen += g.length[anchorPath.get(l)] - (K-1);
+                            matchLen += g.length[anchorPath.get(l)] - Math.max(lastMatchEnd - curStart + 1, 0);
+                            lastMatchEnd = curStart + g.length[anchorPath.get(l)] - 1;
                         }
-//                        if (l < anchorPath.size() - 1 && matchNodes.contains(anchorPath.get(l+1))) {
-//                            matchLen -= (K-1);
-//                        }
+                        curStart += g.length[anchorPath.get(l)] - (K - 1);
                     }
-                    if (matchLen > anchorPathLen) {
-                        System.out.println("anchorPathLen: " + anchorPathLen + " segLen: " + segLen + " matchLen: " + matchLen);
-                    }
-                    // int segLength = (matchPos.get(k) - matchPos.get(j)) + 1;
+
                     if (matchLen >= (1.0 - eps_r) * anchorPathLen && // check eps_r and mu_i constraints
                             (segLen - matchLen) <= mu_i * anchorPathLen) {
                         maxK = k;
                         foundNew = true;
-                        System.out.println("anchorPathLen: " + anchorPathLen + " segLen: " + segLen + " matchLen: " + matchLen);
+                        if (matchLen > anchorPathLen) {
+                            System.out.println("foundNew anchorPathLen: " + anchorPathLen + " segLen: " + segLen + " matchLen: " + matchLen);
+                        }
                     }
                 }
                 if (foundNew) {
@@ -465,6 +463,7 @@ public class FindAFS implements Runnable {
                                 + "\t" + 0 // thickstart
                                 + "\t" + 0 // thickend
                                 + "\t" + colors[count % colors.length] // itemRGB
+                                + "\t" + (startStop[1] - startStop[0] + 1) // AFS length
                                 + "\n");
                     }
                 }
