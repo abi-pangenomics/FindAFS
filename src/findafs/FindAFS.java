@@ -153,9 +153,9 @@ public class FindAFS implements Runnable {
         ArrayList<Integer> anchorPath = afsNode.getAnchorPath();
         int anchorPathLen = 0;
         for (Integer iobj : anchorPath) {
-            anchorPathLen += g.length[iobj];
+            anchorPathLen += g.length[iobj] - (K-1);
         }
-        anchorPathLen -= (K - 1) * (anchorPath.size() - 1);
+        //anchorPathLen -= (K - 1) * (anchorPath.size() - 1);
 
         for (Integer iobj : pathSet) {
             int[] testPath = paths[iobj];
@@ -173,9 +173,9 @@ public class FindAFS implements Runnable {
                     //int numMatches = (k - j) + 1;
                     int segLen = 0;
                     for (int l = matchPos.get(j); l <= matchPos.get(k); l++) {
-                        segLen += g.length[testPath[l]];
+                        segLen += g.length[testPath[l]] - (K-1);
                     }
-                    segLen -= (K - 1) * (matchPos.get(k) - matchPos.get(j));
+                    //segLen -= (K - 1) * (matchPos.get(k) - matchPos.get(j));
 
                     int matchLen = 0;
                     TreeSet<Integer> matchNodes = new TreeSet<Integer>();
@@ -184,11 +184,11 @@ public class FindAFS implements Runnable {
                     }
                     for (int l = 0; l < anchorPath.size(); l++) {
                         if (matchNodes.contains(anchorPath.get(l))) {
-                            matchLen += g.length[anchorPath.get(l)];
+                            matchLen += g.length[anchorPath.get(l)] - (K-1);
                         }
-                        if (l < anchorPath.size() - 1 && matchNodes.contains(anchorPath.get(l+1))) {
-                            matchLen -= (K-1);
-                        }
+//                        if (l < anchorPath.size() - 1 && matchNodes.contains(anchorPath.get(l+1))) {
+//                            matchLen -= (K-1);
+//                        }
                     }
                     if (matchLen > anchorPathLen) {
                         System.out.println("anchorPathLen: " + anchorPathLen + " segLen: " + segLen + " matchLen: " + matchLen);
