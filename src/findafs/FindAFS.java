@@ -358,6 +358,10 @@ public class FindAFS implements Runnable {
         AFSNode top;
         while ((top = frontierQ.poll()) != null && nodesExplored < maxExploreNodes) {
             expand(top);
+            if (top.support >= minSup) {
+                bestSLset.add(top);
+                //System.out.println("found new afs at depth " + top.depth() + top.getAnchorPath());
+            }
             nodesExplored++;
             if (nodesExplored % 20000 == 0) {
                 System.out.println("nodes explored: " + nodesExplored);
@@ -366,16 +370,16 @@ public class FindAFS implements Runnable {
     }
 
     void findBestSolns() {
-        AFSNode leafNode;
-        while ((leafNode = frontierQ.poll()) != null) {
-            AFSNode curNode = leafNode;
-            while (curNode != null && curNode.support < minSup) {
-                curNode = curNode.parent;
-            }
-            if (curNode != null && curNode.support >= minSup) {
-                bestSLset.add(curNode);
-            }
-        }
+//        AFSNode leafNode;
+//        while ((leafNode = frontierQ.poll()) != null) {
+//            AFSNode curNode = leafNode;
+//            while (curNode != null && curNode.support < minSup) {
+//                curNode = curNode.parent;
+//            }
+//            if (curNode != null && curNode.support >= minSup) {
+//                bestSLset.add(curNode);
+//            }
+//        }
 
         if (myThreadNum == 0) {
             try {
@@ -386,6 +390,7 @@ public class FindAFS implements Runnable {
                 ex.printStackTrace();
                 System.exit(-1);
             }
+            
             System.out.println("single thread finishing up..");
             TreeSet<AFSNode> removeSet = new TreeSet<AFSNode>();
             for (AFSNode bNode : bestSLset) {
@@ -395,6 +400,7 @@ public class FindAFS implements Runnable {
                     curNode = curNode.parent;
                 }
             }
+            System.out.println("removeSet size: " + removeSet.size());
             for (AFSNode rmNode : removeSet) {
                 bestSLset.remove(rmNode);
             }
