@@ -36,7 +36,7 @@ public class FindAFS implements Runnable {
     int myThreadNum;
 
     // command line arguments:
-    static int K = -1; // k-mer size
+    static int K = -1; // j-mer size
     static double eps_r = 0.0; // epsilon_r parameter
     static double mu_i = 0.0; // mu_i parameter
     static double eps_c = 0.0; // epsilon_c parameter
@@ -155,30 +155,39 @@ public class FindAFS implements Runnable {
         for (Integer iobj : anchorPath) {
             anchorPathLen += g.length[iobj] - (K - 1);
         }
-
-        for (Integer iobj : pathSet) {
-            int[] testPath = paths[iobj];
+        TreeSet<Integer> matchNodes = new TreeSet<Integer>();
+        for (Integer P : pathSet) {
+            int[] testPath = paths[P];
             ArrayList<Integer> matchPos = new ArrayList<Integer>();
             for (int j = 0; j < testPath.length; j++) {
                 if (afsNode.contains(testPath[j])) {
                     matchPos.add(j);
                 }
             }
-            int maxK = -1;
-            for (int j = 0; j < matchPos.size(); j++) {
-                boolean foundNew = false;
-                for (int k = Math.max(j, maxK + 1); k < matchPos.size(); k++) {
-                    //int numMatches = (k - j) + 1;
-                    int segLen = (K - 1);
-                    for (int l = matchPos.get(j); l <= matchPos.get(k); l++) {
-                        segLen += g.length[testPath[l]] - (K - 1);
+            int[][] segLen = new int[matchPos.size()][matchPos.size()];
+            for (int d = 0; d < matchPos.size(); d++) {
+                for (int i = 0; i < matchPos.size() - d; i++) {
+                    int j = i + d;
+                    if (d == 0) {
+                        segLen[i][j] = g.length[testPath[matchPos.get(i)]];
+                    } else if (d == 1) {
+                        segLen[i][j] = (K - 1);
+                        for (int k = matchPos.get(i); k <= matchPos.get(j); k++) {
+                            segLen[i][j] += g.length[testPath[k]] - (K - 1);
+                        }
+                    } else {
+                        segLen[i][j] = segLen[i][j - 1] + segLen[j - 1][j] - segLen[j - 1][j - 1];
                     }
-
-                    TreeSet<Integer> matchNodes = new TreeSet<Integer>();
-                    for (int l = j; l <= k; l++) {
+                }
+            }
+            int maxJ = -1;
+            for (int i = 0; i < matchPos.size(); i++) {
+                boolean foundNew = false;
+                for (int j = Math.max(i, maxJ + 1); j < matchPos.size(); j++) {
+                    matchNodes.clear();
+                    for (int l = i; l <= j; l++) {
                         matchNodes.add(testPath[matchPos.get(l)]);
                     }
-
                     int matchLen = 0;
                     int curStart = 1;
                     int lastMatchEnd = 0;
@@ -189,21 +198,17 @@ public class FindAFS implements Runnable {
                         }
                         curStart += g.length[anchorPath.get(l)] - (K - 1);
                     }
-
                     if (matchLen >= (1.0 - eps_r) * anchorPathLen && // check eps_r and mu_i constraints
-                            (segLen - matchLen) <= mu_i * anchorPathLen) {
-                        maxK = k;
+                            (segLen[i][j] - matchLen) <= mu_i * anchorPathLen) {
+                        maxJ = j;
                         foundNew = true;
-                        if (matchLen > anchorPathLen) {
-                            System.out.println("foundNew anchorPathLen: " + anchorPathLen + " segLen: " + segLen + " matchLen: " + matchLen);
-                        }
                     }
                 }
                 if (foundNew) {
                     PathSegment ps = new PathSegment();
-                    ps.path = iobj;
-                    ps.start = matchPos.get(j);
-                    ps.stop = matchPos.get(maxK);
+                    ps.path = P;
+                    ps.start = matchPos.get(i);
+                    ps.stop = matchPos.get(maxJ);
                     ps.support = 0.0;
                     segList.add(ps);
                 }
