@@ -28,7 +28,7 @@ public class FindAFS implements Runnable {
     static PriorityBlockingQueue<AFSNode> frontierQ;//, bestQ;
     static ConcurrentSkipListSet<AFSNode> bestSLset;
     static int numThreads;
-    static int nodesExplored = 0;
+    static int nodesExpanded = 0;
 
     // per thread variables:
     static Thread[] worker;
@@ -160,7 +160,7 @@ public class FindAFS implements Runnable {
             int[] testPath = paths[P];
             ArrayList<Integer> matchPos = new ArrayList<Integer>();
             for (int j = 0; j < testPath.length; j++) {
-                if (afsNode.contains(testPath[j])) {
+                if (afsNode.pathContains(testPath[j])) {
                     matchPos.add(j);
                 }
             }
@@ -325,9 +325,9 @@ public class FindAFS implements Runnable {
     void expand(AFSNode parentNode) {
         for (int i = 0; i < g.neighbor[parentNode.node].length; i++) {
             int neighbor = g.neighbor[parentNode.node][i];
-            if (!parentNode.contains(neighbor)
-                    && g.nodePaths[neighbor] != null // only consider simple paths
-                    && g.nodePaths[neighbor].length >= eps_c * minSup) {
+            if (!parentNode.pathContains(neighbor) // only consider simple paths
+                    && g.nodePaths[neighbor] != null 
+                    && g.nodePaths[neighbor].length >= (1.0 - eps_c) * minSup) {
                 AFSNode newNode = new AFSNode();
                 newNode.node = neighbor;
                 newNode.parent = parentNode;
@@ -342,45 +342,39 @@ public class FindAFS implements Runnable {
         for (int nextNodeToAdd = 0; nextNodeToAdd < g.numNodes; nextNodeToAdd++) {
             if (nextNodeToAdd % numThreads == myThreadNum
                     && g.nodePaths[nextNodeToAdd] != null
-                    && g.nodePaths[nextNodeToAdd].length >= eps_c * minSup) {
+                    && g.nodePaths[nextNodeToAdd].length >= (1.0 - eps_c) * minSup) {
                 AFSNode newNode = new AFSNode();
                 newNode.parent = null;
                 newNode.node = nextNodeToAdd;
                 computeSupport(newNode);
-
-                frontierQ.add(newNode);
-                if (nextNodeToAdd % 20000 == 0) {
-                    System.out.println("nodes added: " + nextNodeToAdd);
+                if (newNode.support >= (1.0 - eps_c) * minSup) {
+                    frontierQ.add(newNode);
+                    if (nextNodeToAdd % 20000 == 0) {
+                        System.out.println("nodes added: " + nextNodeToAdd);
+                    }
                 }
             }
         }
 
         AFSNode top;
-        while ((top = frontierQ.poll()) != null && nodesExplored < maxExploreNodes) {
+        while ((top = frontierQ.poll()) != null && nodesExpanded < maxExploreNodes) {
             expand(top);
             if (top.support >= minSup) {
                 bestSLset.add(top);
-                //System.out.println("found new afs at depth " + top.depth() + top.getAnchorPath());
             }
-            nodesExplored++;
-            if (nodesExplored % 20000 == 0) {
-                System.out.println("nodes explored: " + nodesExplored);
+            nodesExpanded++;
+            if (nodesExpanded % 20000 == 0) {
+                System.out.println("nodes expanded: " + nodesExpanded);
+            }
+        }
+        while ((top = frontierQ.poll()) != null) {
+            if (top.support >= minSup) {
+                bestSLset.add(top);
             }
         }
     }
 
     void findBestSolns() {
-//        AFSNode leafNode;
-//        while ((leafNode = frontierQ.poll()) != null) {
-//            AFSNode curNode = leafNode;
-//            while (curNode != null && curNode.support < minSup) {
-//                curNode = curNode.parent;
-//            }
-//            if (curNode != null && curNode.support >= minSup) {
-//                bestSLset.add(curNode);
-//            }
-//        }
-
         if (myThreadNum == 0) {
             try {
                 for (int i = 1; i < numThreads; i++) { // wait for other threads to finish
@@ -390,7 +384,7 @@ public class FindAFS implements Runnable {
                 ex.printStackTrace();
                 System.exit(-1);
             }
-            
+
             System.out.println("single thread finishing up..");
             TreeSet<AFSNode> removeSet = new TreeSet<AFSNode>();
             for (AFSNode bNode : bestSLset) {

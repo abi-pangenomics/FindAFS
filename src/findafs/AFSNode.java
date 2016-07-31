@@ -26,13 +26,13 @@ public class AFSNode implements Comparable<AFSNode> {
         return Double.compare(other.support, support);
     }
 
-    public boolean contains(int n) {
+    public boolean pathContains(int n) {
         if (node == n) {
             return true;
         } else if (parent == null) {
             return false;
         } else {
-            return parent.contains(n);
+            return parent.pathContains(n);
         }
     }
 
