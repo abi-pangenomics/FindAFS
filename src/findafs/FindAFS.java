@@ -437,26 +437,31 @@ public class FindAFS implements Runnable {
         return startStop;
     }
 
-    static void printAFS(AFSNode afsNode, ArrayList<PathSegment> supportingSegments) {
-        System.out.println("anchor path: " + afsNode.getAnchorPath());
-        System.out.println("total support: " + afsNode.support);
+//    static void printAFS(AFSNode afsNode, ArrayList<PathSegment> supportingSegments) {
+//        System.out.println("anchor path: " + afsNode.getAnchorPath());
+//        System.out.println("total support: " + afsNode.support);
+//
+//        for (PathSegment ps : supportingSegments) {
+//            System.out.println("from fasta seq: " + sequences.get(ps.path).label);
+//            System.out.println("support:" + ps.support);
+//            System.out.println("length (nodes): " + (ps.stop - ps.start + 1));
+//            System.out.print("fasta location: ");
+//            int[] startStop = findFastaLoc(ps);
+//            System.out.println(startStop[0] + "," + startStop[1]);
+//        }
+//        System.out.println();
+//    }
+    int findLen(ArrayList<Integer> pa) {
+        int c = 0;
+        for (int i = 0; i < pa.size(); i++) {
+            if (i == 0) {
+                c += g.length[pa.get(i)];
 
-        for (PathSegment ps : supportingSegments) {
-            System.out.println("from fasta seq: " + sequences.get(ps.path).label);
-//            System.bedOut.print("subpath: [");
-//            for (int i = ps.start; i <= ps.stop; i++) {
-//                if (i > ps.start) {
-//                    System.bedOut.print(",");
-//                }
-//                System.bedOut.print(paths[ps.path][i]);
-//            }
-            System.out.println("support:" + ps.support);
-            System.out.println("length (nodes): " + (ps.stop - ps.start + 1));
-            System.out.print("fasta location: ");
-            int[] startStop = findFastaLoc(ps);
-            System.out.println(startStop[0] + "," + startStop[1]);
+            } else {
+                c += g.length[pa.get(i)] - (K - 1);
+            }
         }
-        System.out.println();
+        return c;
     }
 
     void writeBED() {
@@ -469,22 +474,31 @@ public class FindAFS implements Runnable {
             AFSNode top;
             while ((top = bestSLset.pollFirst()) != null && count < maxSolns) {
                 ArrayList<PathSegment> supportingSegments = computeSupport(top);
-                printAFS(top, supportingSegments);
-
+                //printAFS(top, supportingSegments);
                 ArrayList<Integer> pa = top.getAnchorPath();
+                afsOut.write(">afs-" + count + " support: " + top.support + " length: " + findLen(pa) + "\n");
+                int c = 0;
                 for (int i = 0; i < pa.size(); i++) {
                     int start = g.starts[pa.get(i)][0];
                     if (i == 0) {
                         for (int j = 0; j < g.length[pa.get(i)]; j++) {
                             afsOut.write(fastaConcat[start + j]);
+                            if (++c % 80 == 0) {
+                                afsOut.write("\n");
+                            }
                         }
                     } else {
                         for (int j = (K - 1); j < g.length[pa.get(i)]; j++) {
                             afsOut.write(fastaConcat[start + j]);
+                            if (++c % 80 == 0) {
+                                afsOut.write("\n");
+                            }
                         }
                     }
                 }
-                afsOut.write("\tafs-" + count + " support: " + top.support + "\n");
+                if (c % 80 != 0) {
+                    afsOut.write("\n");
+                }
 
                 for (PathSegment ps : supportingSegments) {
                     if (ps.support > 0.0) {
@@ -500,23 +514,32 @@ public class FindAFS implements Runnable {
                                 + "\t" + 0 // thickstart
                                 + "\t" + 0 // thickend
                                 + "\t" + colors[count % colors.length] // itemRGB
-                                + "\t" + (startStop[1] - startStop[0] + 1) // AFS length
+                                + "\t" + (startStop[1] - startStop[0]) // AFS length
                                 + "\n");
 
+                        afsOut.write(">" + name + " segment for: afs-" + count + " support: " + ps.support + " length: " + (startStop[1] - startStop[0]) + "\n");
+                        c = 0;
                         for (int i = ps.start; i <= ps.stop; i++) {
                             int start = g.starts[paths[ps.path][i]][0];
                             if (i == ps.start) {
-                                for (int j = 0; j < g.length[paths[ps.path][i]]; j++) {            
+                                for (int j = 0; j < g.length[paths[ps.path][i]]; j++) {
                                     afsOut.write(fastaConcat[start + j]);
+                                    if (++c % 80 == 0) {
+                                        afsOut.write("\n");
+                                    }
                                 }
                             } else {
                                 for (int j = (K - 1); j < g.length[paths[ps.path][i]]; j++) {
                                     afsOut.write(fastaConcat[start + j]);
+                                    if (++c % 80 == 0) {
+                                        afsOut.write("\n");
+                                    }
                                 }
                             }
                         }
-                        afsOut.write("\t" + name + " support: " + ps.support + "\n");
-
+                        if (c % 80 != 0) {
+                            afsOut.write("\n");
+                        }
                     }
                 }
                 count++;
