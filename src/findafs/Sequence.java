@@ -11,7 +11,7 @@ package findafs;
  */
 public class Sequence {
     String label;
-    //String seq;
+    String seq;
     int length;
     int startPos;
 }

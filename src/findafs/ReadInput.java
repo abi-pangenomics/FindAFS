@@ -93,7 +93,6 @@ public class ReadInput {
     }
 
     public static ArrayList<Sequence> readFastaFile(String fileName) {
-
         ArrayList<Sequence> sequences = new ArrayList<Sequence>();
         try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
             String line;
@@ -102,13 +101,13 @@ public class ReadInput {
                     String label = line.substring(1, line.length());
                     Sequence nextSeq = new Sequence();
                     nextSeq.label = label.split(" ")[0]; // get what is left of first space
-                    //nextSeq.seq = "";
+                    nextSeq.seq = "";
                     nextSeq.length = 0;
                     sequences.add(nextSeq);
                 } else { // sequence
                     Sequence lastSeq = sequences.get(sequences.size() - 1);
                     lastSeq.length += line.length();
-                    //lastSeq.seq = lastSeq.seq + nextLine.toUpperCase();
+                    lastSeq.seq += line.toUpperCase();
                 }
             }
         } catch (Exception ex) {
@@ -116,7 +115,6 @@ public class ReadInput {
             ex.printStackTrace();
             System.exit(-1);
         }
-
         return sequences;
     }
 }

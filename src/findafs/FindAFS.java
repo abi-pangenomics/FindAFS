@@ -22,6 +22,8 @@ public class FindAFS implements Runnable {
 
     static Graph g;
     static ArrayList<Sequence> sequences;
+    static char[] fastaConcat;
+    static int fastaConcatLen;
     static TreeMap<Integer, Integer> startToNode;
     static int[][] paths;
 
@@ -47,6 +49,17 @@ public class FindAFS implements Runnable {
 
     static void readData() {
         g = ReadInput.readDotFile(filePrefix + ".dot");
+
+        startToNode = new TreeMap<Integer, Integer>();
+        for (int i = 0; i < g.starts.length; i++) {
+            for (int j = 0; j < g.starts[i].length; j++) {
+                startToNode.put(g.starts[i][j], i);
+            }
+            int firstStart = g.starts[i][0];
+            g.starts[i] = new int[1]; // only save 1st start
+            g.starts[i][0] = firstStart;
+        }
+
         sequences = ReadInput.readFastaFile(filePrefix + ".fa");
     }
 
@@ -71,15 +84,6 @@ public class FindAFS implements Runnable {
     }
 
     static void buildPaths() {
-        //System.out.println("g.maxStart: " + g.maxStart);
-        startToNode = new TreeMap<Integer, Integer>();
-        for (int i = 0; i < g.starts.length; i++) {
-            for (int j = 0; j < g.starts[i].length; j++) {
-                startToNode.put(g.starts[i][j], i);
-            }
-        }
-        g.starts = null; // no longer need this.
-
         ArrayList<ArrayList<Integer>> pathsAL = new ArrayList<ArrayList<Integer>>();
         int curStart = 1;
         int seqStart = 1;
@@ -101,7 +105,18 @@ public class FindAFS implements Runnable {
             }
             pathsAL.add(path);
             seqStart = seqEnd + 2;
+
+            fastaConcatLen += 1 + s.seq.length();
         }
+        fastaConcat = new char[fastaConcatLen];
+        for (Sequence s : sequences) {
+            fastaConcat[s.startPos - 1] = '$';
+            for (int i = 0; i < s.length; i++) {
+                fastaConcat[s.startPos + i] = s.seq.charAt(i);
+            }
+            s.seq = null;
+        }
+        //System.out.println(Arrays.toString(fastaConcat));
         System.out.println("number of paths: " + pathsAL.size());
 
         paths = new int[pathsAL.size()][];
@@ -127,7 +142,7 @@ public class FindAFS implements Runnable {
             for (int j = 0; j < paths[i].length; j++) {
                 len[paths[i][j]]++;
             }
-            //System.out.println("path " + i + ": " + Arrays.toString(paths[i]));
+            //System.bedOut.println("path " + i + ": " + Arrays.toString(paths[i]));
         }
 
         g.nodePaths = new int[g.numNodes][];
@@ -326,7 +341,7 @@ public class FindAFS implements Runnable {
         for (int i = 0; i < g.neighbor[parentNode.node].length; i++) {
             int neighbor = g.neighbor[parentNode.node][i];
             if (!parentNode.pathContains(neighbor) // only consider simple paths
-                    && g.nodePaths[neighbor] != null 
+                    && g.nodePaths[neighbor] != null
                     && g.nodePaths[neighbor].length >= (1.0 - eps_c) * minSup) {
                 AFSNode newNode = new AFSNode();
                 newNode.node = neighbor;
@@ -428,12 +443,12 @@ public class FindAFS implements Runnable {
 
         for (PathSegment ps : supportingSegments) {
             System.out.println("from fasta seq: " + sequences.get(ps.path).label);
-//            System.out.print("subpath: [");
+//            System.bedOut.print("subpath: [");
 //            for (int i = ps.start; i <= ps.stop; i++) {
 //                if (i > ps.start) {
-//                    System.out.print(",");
+//                    System.bedOut.print(",");
 //                }
-//                System.out.print(paths[ps.path][i]);
+//                System.bedOut.print(paths[ps.path][i]);
 //            }
             System.out.println("support:" + ps.support);
             System.out.println("length (nodes): " + (ps.stop - ps.start + 1));
@@ -448,17 +463,34 @@ public class FindAFS implements Runnable {
         String[] colors = {"122,39,25", "92,227,60", "225,70,233", "100,198,222", "232,176,49", "50,39,85", "67,101,33", "222,142,186", "92,119,227", "206,225,151", "227,44,118", "229,66,41", "47,36,24", "225,167,130", "120,132,131", "104,232,178", "158,43,133", "228,228,42", "213,217,213", "118,64,79", "88,155,219", "226,118,222", "146,197,53", "222,100,89", "224,117,41", "160,96,228", "137,89,151", "126,209,119", "145,109,70", "91,176,164", "54,81,103", "164,174,137", "172,166,48", "56,86,143", "210,184,226", "175,123,35", "129,161,88", "158,47,85", "87,231,225", "216,189,112", "49,111,75", "89,137,168", "209,118,134", "33,63,44", "166,128,142", "53,137,55", "80,76,161", "170,124,221", "57,62,13", "176,40,40", "94,179,129", "71,176,51", "223,62,170", "78,25,30", "148,69,172", "122,105,31", "56,33,53", "112,150,40", "239,111,176", "96,55,25", "107,90,87", "164,74,28", "171,198,226", "152,131,176", "166,225,211", "53,121,117", "220,58,86", "86,18,56", "225,197,171", "139,142,217", "216,151,223", "97,229,117", "225,155,85", "31,48,58", "160,146,88", "185,71,129", "164,233,55", "234,171,187", "110,97,125", "177,169,175", "177,104,68", "97,48,122", "237,139,128", "187,96,166", "225,90,127", "97,92,55", "124,35,99", "210,64,194", "154,88,84", "100,63,100", "140,42,54", "105,132,99", "186,227,103", "224,222,81", "191,140,126", "200,230,182", "166,87,123", "72,74,58", "212,222,124", "205,52,136"};
         try {
             String paramString = "-k" + K + "-r" + eps_r + "-i" + mu_i + "-c" + eps_c + "-sp" + minSup + "-xp" + maxExploreNodes + "-ms" + maxSolns;
-            BufferedWriter out = new BufferedWriter(new FileWriter(filePrefix + paramString + ".bed"));
+            BufferedWriter bedOut = new BufferedWriter(new FileWriter(filePrefix + paramString + ".bed"));
+            BufferedWriter afsOut = new BufferedWriter(new FileWriter(filePrefix + paramString + ".afs"));
             int count = 0;
             AFSNode top;
             while ((top = bestSLset.pollFirst()) != null && count < maxSolns) {
                 ArrayList<PathSegment> supportingSegments = computeSupport(top);
                 printAFS(top, supportingSegments);
+
+                ArrayList<Integer> pa = top.getAnchorPath();
+                for (int i = 0; i < pa.size(); i++) {
+                    int start = g.starts[pa.get(i)][0];
+                    if (i == 0) {
+                        for (int j = 0; j < g.length[pa.get(i)]; j++) {
+                            afsOut.write(fastaConcat[start + j]);
+                        }
+                    } else {
+                        for (int j = (K - 1); j < g.length[pa.get(i)]; j++) {
+                            afsOut.write(fastaConcat[start + j]);
+                        }
+                    }
+                }
+                afsOut.write("\tafs-" + count + " support: " + top.support + "\n");
+
                 for (PathSegment ps : supportingSegments) {
                     if (ps.support > 0.0) {
                         String name = sequences.get(ps.path).label;
                         int[] startStop = findFastaLoc(ps);
-                        out.write(
+                        bedOut.write(
                                 name // chrom
                                 + "\t" + startStop[0] // chromStart (starts with 0)
                                 + "\t" + startStop[1] // chromEnd
@@ -470,11 +502,27 @@ public class FindAFS implements Runnable {
                                 + "\t" + colors[count % colors.length] // itemRGB
                                 + "\t" + (startStop[1] - startStop[0] + 1) // AFS length
                                 + "\n");
+
+                        for (int i = ps.start; i <= ps.stop; i++) {
+                            int start = g.starts[paths[ps.path][i]][0];
+                            if (i == ps.start) {
+                                for (int j = 0; j < g.length[paths[ps.path][i]]; j++) {            
+                                    afsOut.write(fastaConcat[start + j]);
+                                }
+                            } else {
+                                for (int j = (K - 1); j < g.length[paths[ps.path][i]]; j++) {
+                                    afsOut.write(fastaConcat[start + j]);
+                                }
+                            }
+                        }
+                        afsOut.write("\t" + name + " support: " + ps.support + "\n");
+
                     }
                 }
                 count++;
             }
-            out.close();
+            bedOut.close();
+            afsOut.close();
         } catch (Exception ex) {
             ex.printStackTrace();
             System.exit(-1);
@@ -515,7 +563,6 @@ public class FindAFS implements Runnable {
         buildPaths();
 
         frontierQ = new PriorityBlockingQueue<AFSNode>();
-        //bestQ = new PriorityBlockingQueue<AFSNode>();
         bestSLset = new ConcurrentSkipListSet<AFSNode>();
 
         // launch threads:
