@@ -10,6 +10,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.PriorityQueue;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -27,8 +28,10 @@ public class FindAFS implements Runnable {
     static TreeMap<Integer, Integer> startToNode;
     static int[][] paths;
 
-    static PriorityBlockingQueue<AFSNode> frontierQ;//, bestQ;
-    static ConcurrentSkipListSet<AFSNode> bestSLset;
+    static PriorityBlockingQueue<AFSNode> frontierQ;
+    static ConcurrentSkipListSet<AFSNode> afsQ;
+    static LinkedBlockingQueue<AFSNode> suffixQ;
+    static AFSNode[] startNode;
     static int numThreads;
     static int nodesExpanded = 0;
 
@@ -338,6 +341,7 @@ public class FindAFS implements Runnable {
     }
 
     void expand(AFSNode parentNode) {
+        ArrayList<AFSNode> children = new ArrayList<AFSNode>();
         for (int i = 0; i < g.neighbor[parentNode.node].length; i++) {
             int neighbor = g.neighbor[parentNode.node][i];
             if (!parentNode.pathContains(neighbor) // only consider simple paths
@@ -346,10 +350,16 @@ public class FindAFS implements Runnable {
                 AFSNode newNode = new AFSNode();
                 newNode.node = neighbor;
                 newNode.parent = parentNode;
+                newNode.child = null;
+                children.add(newNode);
                 computeSupport(newNode);
-
                 frontierQ.add(newNode);
             }
+        }
+        parentNode.child = new AFSNode[children.size()];
+        int i = 0;
+        for (AFSNode n : children) {
+            parentNode.child[i++] = n;
         }
     }
 
@@ -364,6 +374,8 @@ public class FindAFS implements Runnable {
                 computeSupport(newNode);
                 if (newNode.support >= (1.0 - eps_c) * minSup) {
                     frontierQ.add(newNode);
+                    startNode[newNode.node] = newNode;
+                    suffixQ.add(newNode);
                     if (nextNodeToAdd % 20000 == 0) {
                         System.out.println("nodes added: " + nextNodeToAdd);
                     }
@@ -374,19 +386,60 @@ public class FindAFS implements Runnable {
         AFSNode top;
         while ((top = frontierQ.poll()) != null && nodesExpanded < maxExploreNodes) {
             expand(top);
-            if (top.support >= minSup) {
-                bestSLset.add(top);
-            }
             nodesExpanded++;
             if (nodesExpanded % 20000 == 0) {
                 System.out.println("nodes expanded: " + nodesExpanded);
             }
         }
-        while ((top = frontierQ.poll()) != null) {
-            if (top.support >= minSup) {
-                bestSLset.add(top);
+    }
+
+    void findSuffixLinks() {
+        // at this point suffixQ contains all level 1 nodes
+        System.out.println("finding suffix links");
+        AFSNode front;
+        while ((front = suffixQ.poll()) != null) {
+            if (front.parent == null) {
+                front.suffixlink = null;
+            } else {
+                AFSNode parent = front.parent;
+                AFSNode sparent = parent.suffixlink;
+                while (front.suffixlink == null) {
+                    if (sparent != null && sparent.child != null) {
+                        for (AFSNode n : sparent.child) {
+                            if (n.node == front.node) {
+                                front.suffixlink = n;
+                                break;
+                            }
+                        }
+                    }
+                    if (sparent == null) {
+                        front.suffixlink = startNode[front.node];
+                    } else if (front.suffixlink == null) {
+                        sparent = sparent.suffixlink;
+                    }
+                }
+            }
+            // add front's children to suffixQ:
+            if (front.child != null) {
+                for (AFSNode n : front.child) {
+                    suffixQ.add(n);
+                }
             }
         }
+    }
+
+    double maxSupport(AFSNode n) {
+        if (n.child == null) {
+            return n.support;
+        }
+        double maxChildSup = 0.0;
+        for (int i = 0; i < n.child.length; i++) {
+            maxChildSup = Math.max(maxChildSup, maxSupport(n.child[i]));
+        }
+        if (n.support > maxChildSup && n.support >= minSup) {
+            afsQ.add(n);
+        }
+        return Math.max(n.support, maxChildSup);
     }
 
     void findBestSolns() {
@@ -401,21 +454,34 @@ public class FindAFS implements Runnable {
             }
 
             System.out.println("single thread finishing up..");
+            for (int i = 0; i < g.numNodes; i++) {
+                if (startNode[i] != null) {
+                    maxSupport(startNode[i]);
+                }
+            }
+
+            findSuffixLinks();
             TreeSet<AFSNode> removeSet = new TreeSet<AFSNode>();
-            for (AFSNode bNode : bestSLset) {
-                AFSNode curNode = bNode.parent;
+            for (AFSNode bNode : afsQ) {
+                AFSNode curNode = bNode;
                 while (curNode != null) {
-                    removeSet.add(curNode);
+                    AFSNode sufNode = curNode.suffixlink;
+                    while (sufNode != null) {
+                        if (sufNode.support <= bNode.support) {
+                            removeSet.add(sufNode);
+                        }
+                        sufNode = sufNode.suffixlink;
+                    }
                     curNode = curNode.parent;
                 }
             }
             System.out.println("removeSet size: " + removeSet.size());
             for (AFSNode rmNode : removeSet) {
-                bestSLset.remove(rmNode);
+                afsQ.remove(rmNode);
             }
 
             // write results:
-            writeBED();
+            outputAFSs();
         }
     }
 
@@ -464,18 +530,18 @@ public class FindAFS implements Runnable {
         return c;
     }
 
-    void writeBED() {
+    void outputAFSs() {
         String[] colors = {"122,39,25", "92,227,60", "225,70,233", "100,198,222", "232,176,49", "50,39,85", "67,101,33", "222,142,186", "92,119,227", "206,225,151", "227,44,118", "229,66,41", "47,36,24", "225,167,130", "120,132,131", "104,232,178", "158,43,133", "228,228,42", "213,217,213", "118,64,79", "88,155,219", "226,118,222", "146,197,53", "222,100,89", "224,117,41", "160,96,228", "137,89,151", "126,209,119", "145,109,70", "91,176,164", "54,81,103", "164,174,137", "172,166,48", "56,86,143", "210,184,226", "175,123,35", "129,161,88", "158,47,85", "87,231,225", "216,189,112", "49,111,75", "89,137,168", "209,118,134", "33,63,44", "166,128,142", "53,137,55", "80,76,161", "170,124,221", "57,62,13", "176,40,40", "94,179,129", "71,176,51", "223,62,170", "78,25,30", "148,69,172", "122,105,31", "56,33,53", "112,150,40", "239,111,176", "96,55,25", "107,90,87", "164,74,28", "171,198,226", "152,131,176", "166,225,211", "53,121,117", "220,58,86", "86,18,56", "225,197,171", "139,142,217", "216,151,223", "97,229,117", "225,155,85", "31,48,58", "160,146,88", "185,71,129", "164,233,55", "234,171,187", "110,97,125", "177,169,175", "177,104,68", "97,48,122", "237,139,128", "187,96,166", "225,90,127", "97,92,55", "124,35,99", "210,64,194", "154,88,84", "100,63,100", "140,42,54", "105,132,99", "186,227,103", "224,222,81", "191,140,126", "200,230,182", "166,87,123", "72,74,58", "212,222,124", "205,52,136"};
         try {
             String paramString = "-k" + K + "-r" + eps_r + "-i" + mu_i + "-c" + eps_c + "-sp" + minSup + "-xp" + maxExploreNodes + "-ms" + maxSolns;
             BufferedWriter bedOut = new BufferedWriter(new FileWriter(filePrefix + paramString + ".bed"));
-            BufferedWriter afsOut = new BufferedWriter(new FileWriter(filePrefix + paramString + ".afs"));
             int count = 0;
             AFSNode top;
-            while ((top = bestSLset.pollFirst()) != null && count < maxSolns) {
+            while ((top = afsQ.pollFirst()) != null && count < maxSolns) {
                 ArrayList<PathSegment> supportingSegments = computeSupport(top);
                 //printAFS(top, supportingSegments);
                 ArrayList<Integer> pa = top.getAnchorPath();
+                BufferedWriter afsOut = new BufferedWriter(new FileWriter(filePrefix + paramString + "-afs-" + count + ".fa"));
                 afsOut.write(">afs-" + count + " support: " + top.support + " length: " + findLen(pa) + "\n");
                 int c = 0;
                 for (int i = 0; i < pa.size(); i++) {
@@ -543,9 +609,10 @@ public class FindAFS implements Runnable {
                     }
                 }
                 count++;
+                afsOut.close();
             }
             bedOut.close();
-            afsOut.close();
+
         } catch (Exception ex) {
             ex.printStackTrace();
             System.exit(-1);
@@ -586,7 +653,9 @@ public class FindAFS implements Runnable {
         buildPaths();
 
         frontierQ = new PriorityBlockingQueue<AFSNode>();
-        bestSLset = new ConcurrentSkipListSet<AFSNode>();
+        afsQ = new ConcurrentSkipListSet<AFSNode>();
+        startNode = new AFSNode[g.numNodes];
+        suffixQ = new LinkedBlockingQueue<AFSNode>();
 
         // launch threads:
         numThreads = Runtime.getRuntime().availableProcessors();

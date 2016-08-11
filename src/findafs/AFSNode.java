@@ -20,6 +20,8 @@ public class AFSNode implements Comparable<AFSNode> {
     int[] supportingPaths;
     //ArrayList<PathSegment> supportingSegments;
     float support;
+    AFSNode suffixlink;
+    AFSNode[] child;
     
 
     public int compareTo(AFSNode other) {
