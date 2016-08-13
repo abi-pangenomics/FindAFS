@@ -166,14 +166,74 @@ public class FindAFS implements Runnable {
         }
     }
 
+    static int[][] lcs(int[] s, int[] t) {
+        int[][] m = new int[2][];
+        m[0] = new int[s.length]; // m[0][i] == 1 iff s[i] in LCS
+        m[1] = new int[t.length]; // m[1][j] == 1 iff t[j] in LCS
+        int[][] len = new int[s.length + 1][t.length + 1];
+        int[][] best = new int[s.length + 1][t.length + 1];
+
+        for (int i = 1; i <= s.length; i++) {
+            for (int j = 1; j <= t.length; j++) {
+                if (s[i - 1] == t[j - 1]) {
+                    len[i][j] = 1 + len[i - 1][j - 1];
+                    best[i][j] = 1; // match, go up and left
+                } else if (len[i][j - 1] >= len[i - 1][j]) {
+                    len[i][j] = len[i][j - 1];
+                    best[i][j] = 2; // mismatch, go left       
+                } else {
+                    len[i][j] = len[i - 1][j];
+                    best[i][j] = 3; // mismatch, go up                   
+                }
+            }
+        }
+        int curI = s.length;
+        int curJ = t.length;
+        while (curI > 0 && curJ > 0) {
+            if (best[curI][curJ] == 1) {
+                m[0][curI - 1] = 1;
+                m[1][curJ - 1] = 1;
+                curI--;
+                curJ--;
+            } else if (best[curI][curJ] == 2) {
+                curJ--;
+            } else {
+                curI--;
+            }
+        }
+        return m;
+    }
+
+    static int matchLength(int[] path, int[] matched) {
+        int len = 0;
+        int last = -2;
+        for (int i = 0; i < path.length; i++) {
+            if (matched[i] == 1) {
+                len += g.length[path[i]];
+                if (last == i-1) {
+                    len -= (K-1);
+                }
+                last = i;
+            }
+        }
+        return len;
+    }
+    
+    static int[] comparePaths(int[] pa, int[] seg) {
+        int[] matchLen = new int[2]; //matchLen[0] pa matchLen, matchLen[1] seg matchLen
+        int[][] lcsMatch = lcs(pa, seg);
+        matchLen[0] = matchLength(pa, lcsMatch[0]);
+        matchLen[1] = matchLength(seg, lcsMatch[1]);
+        return matchLen;
+    }
+
     static ArrayList<PathSegment> findMaximalSegments(AFSNode afsNode, TreeSet<Integer> pathSet) {
         ArrayList<PathSegment> segList = new ArrayList<PathSegment>();
-        ArrayList<Integer> anchorPath = afsNode.getAnchorPath();
-        int anchorPathLen = (K - 1);
-        for (Integer iobj : anchorPath) {
-            anchorPathLen += g.length[iobj] - (K - 1);
+        int[] anchorPath = afsNode.getAnchorPath();
+        int palength = (K - 1);
+        for (Integer I : anchorPath) {
+            palength += g.length[I] - (K - 1);
         }
-        TreeSet<Integer> matchNodes = new TreeSet<Integer>();
         for (Integer P : pathSet) {
             int[] testPath = paths[P];
             ArrayList<Integer> matchPos = new ArrayList<Integer>();
@@ -202,22 +262,11 @@ public class FindAFS implements Runnable {
             for (int i = 0; i < matchPos.size(); i++) {
                 boolean foundNew = false;
                 for (int j = Math.max(i, maxJ + 1); j < matchPos.size(); j++) {
-                    matchNodes.clear();
-                    for (int l = i; l <= j; l++) {
-                        matchNodes.add(testPath[matchPos.get(l)]);
-                    }
-                    int matchLen = 0;
-                    int curStart = 1;
-                    int lastMatchEnd = 0;
-                    for (int l = 0; l < anchorPath.size(); l++) {
-                        if (matchNodes.contains(anchorPath.get(l))) {
-                            matchLen += g.length[anchorPath.get(l)] - Math.max(lastMatchEnd - curStart + 1, 0);
-                            lastMatchEnd = curStart + g.length[anchorPath.get(l)] - 1;
-                        }
-                        curStart += g.length[anchorPath.get(l)] - (K - 1);
-                    }
-                    if (matchLen >= (1.0 - eps_r) * anchorPathLen && // check eps_r and mu_i constraints
-                            (segLen[i][j] - matchLen) <= mu_i * anchorPathLen) {
+                    int[] mlength = comparePaths(anchorPath,
+                            Arrays.copyOfRange(testPath, matchPos.get(i), matchPos.get(j) + 1));
+                    // mlength[0] = pa match length, malength[1] = seg match length
+                    if (mlength[0] >= (1.0 - eps_r) * palength && // check eps_r and mu_i constraints
+                            (segLen[i][j] - mlength[1]) <= mu_i * palength) {
                         maxJ = j;
                         foundNew = true;
                     }
@@ -235,6 +284,15 @@ public class FindAFS implements Runnable {
         return segList;
     }
 
+    static int getIndex(int[] a, int x) {
+        for (int i = 0; i < a.length; i++) {
+            if (a[i] == x) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    
     void epsCFilter(AFSNode node, ArrayList<PathSegment> supportingSegments) {
 
         // create an ILP
@@ -243,7 +301,7 @@ public class FindAFS implements Runnable {
             for (int i = 0; i < supportingSegments.size(); i++) {
                 psv[i] = cplex.numVar(0, 1.0, "ps(" + i + ")");
             }
-            ArrayList<Integer> pa = node.getAnchorPath();
+            int[] pa = node.getAnchorPath();
 
             // overlap constraints:
             int maxJ = -1;
@@ -266,20 +324,20 @@ public class FindAFS implements Runnable {
             }
 
             // eps_c constraints:
-            IloLinearNumExpr[] expr = new IloLinearNumExpr[pa.size()];
-            for (int i = 0; i < pa.size(); i++) {
+            IloLinearNumExpr[] expr = new IloLinearNumExpr[pa.length];
+            for (int i = 0; i < pa.length; i++) {
                 expr[i] = cplex.linearNumExpr(0.0);
             }
             for (int i = 0; i < supportingSegments.size(); i++) {
                 PathSegment ps = supportingSegments.get(i);
                 for (int j = ps.start; j <= ps.stop; j++) {
-                    int index = pa.indexOf(paths[ps.path][j]);
+                    int index = getIndex(pa, paths[ps.path][j]);
                     if (index >= 0) {
                         expr[index].addTerm(1.0, psv[i]);
                     }
                 }
             }
-            for (int i = 0; i < pa.size(); i++) {
+            for (int i = 0; i < pa.length; i++) {
                 for (int j = 0; j < supportingSegments.size(); j++) {
                     expr[i].addTerm(-(1.0 - eps_c), psv[j]);
                 }
@@ -344,8 +402,7 @@ public class FindAFS implements Runnable {
         ArrayList<AFSNode> children = new ArrayList<AFSNode>();
         for (int i = 0; i < g.neighbor[parentNode.node].length; i++) {
             int neighbor = g.neighbor[parentNode.node][i];
-            if (!parentNode.pathContains(neighbor) // only consider simple paths
-                    && g.nodePaths[neighbor] != null
+            if (g.nodePaths[neighbor] != null
                     && g.nodePaths[neighbor].length >= (1.0 - eps_c) * minSup) {
                 AFSNode newNode = new AFSNode();
                 newNode.node = neighbor;
@@ -517,14 +574,14 @@ public class FindAFS implements Runnable {
 //        }
 //        System.out.println();
 //    }
-    int findLen(ArrayList<Integer> pa) {
+    int findLen(int[] pa) {
         int c = 0;
-        for (int i = 0; i < pa.size(); i++) {
+        for (int i = 0; i < pa.length; i++) {
             if (i == 0) {
-                c += g.length[pa.get(i)];
+                c += g.length[pa[i]];
 
             } else {
-                c += g.length[pa.get(i)] - (K - 1);
+                c += g.length[pa[i]] - (K - 1);
             }
         }
         return c;
@@ -540,21 +597,21 @@ public class FindAFS implements Runnable {
             while ((top = afsQ.pollFirst()) != null && count < maxSolns) {
                 ArrayList<PathSegment> supportingSegments = computeSupport(top);
                 //printAFS(top, supportingSegments);
-                ArrayList<Integer> pa = top.getAnchorPath();
+                int[] pa = top.getAnchorPath();
                 BufferedWriter afsOut = new BufferedWriter(new FileWriter(filePrefix + paramString + "-afs-" + count + ".fa"));
                 afsOut.write(">afs-" + count + " support: " + top.support + " length: " + findLen(pa) + "\n");
                 int c = 0;
-                for (int i = 0; i < pa.size(); i++) {
-                    int start = g.starts[pa.get(i)][0];
+                for (int i = 0; i < pa.length; i++) {
+                    int start = g.starts[pa[i]][0];
                     if (i == 0) {
-                        for (int j = 0; j < g.length[pa.get(i)]; j++) {
+                        for (int j = 0; j < g.length[pa[i]]; j++) {
                             afsOut.write(fastaConcat[start + j]);
                             if (++c % 80 == 0) {
                                 afsOut.write("\n");
                             }
                         }
                     } else {
-                        for (int j = (K - 1); j < g.length[pa.get(i)]; j++) {
+                        for (int j = (K - 1); j < g.length[pa[i]]; j++) {
                             afsOut.write(fastaConcat[start + j]);
                             if (++c % 80 == 0) {
                                 afsOut.write("\n");
@@ -569,6 +626,8 @@ public class FindAFS implements Runnable {
                 for (PathSegment ps : supportingSegments) {
                     if (ps.support > 0.0) {
                         String name = sequences.get(ps.path).label;
+//                        if (ps.start > 0) ps.start--; // see the mismatch at the front
+//                        if (ps.stop < (paths[ps.path].length-1)) ps.stop++; // see the mismatch at the end 
                         int[] startStop = findFastaLoc(ps);
                         bedOut.write(
                                 name // chrom
@@ -634,6 +693,13 @@ public class FindAFS implements Runnable {
 
     public static void main(String[] args) {
 
+//        int[] x = {1, 1, 4, 5};
+//        int[] y = {1, 2, 1, 5, 5};
+//        int[][] m = lcs(x,y);
+//        System.out.println(Arrays.toString(m[0]));
+//        System.out.println(Arrays.toString(m[1]));
+//        System.exit(0);
+        
         // parse args:
         if (args.length != 8) {
             System.out.println("Usage: java findAFS K eps_r mu_i eps_c minSup filePrefix maxExploreNodes maxSolns");

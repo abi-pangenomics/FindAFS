@@ -46,15 +46,18 @@ public class AFSNode implements Comparable<AFSNode> {
         }
     }
     
-    ArrayList<Integer> getAnchorPath() {
-        ArrayList<Integer> pap;
-        if (parent == null) {
-            pap = new ArrayList<Integer>();
-        } else {
-            pap = parent.getAnchorPath();
-
+    int[] getAnchorPath() {
+        ArrayList<Integer> ap = new ArrayList<Integer>();
+        AFSNode curNode = this;
+        while (curNode != null) {
+            ap.add(node);
+            curNode = curNode.parent;
         }
-        pap.add(node);
-        return pap;
+        int[] pa = new int[ap.size()];
+        int i = ap.size() - 1;
+        for (Integer N : ap) {
+            pa[i--] = N;
+        }
+        return pa;
     }
 }
