@@ -50,7 +50,7 @@ public class AFSNode implements Comparable<AFSNode> {
         ArrayList<Integer> ap = new ArrayList<Integer>();
         AFSNode curNode = this;
         while (curNode != null) {
-            ap.add(node);
+            ap.add(curNode.node);
             curNode = curNode.parent;
         }
         int[] pa = new int[ap.size()];

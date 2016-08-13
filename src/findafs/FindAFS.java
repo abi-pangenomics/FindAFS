@@ -220,6 +220,8 @@ public class FindAFS implements Runnable {
     }
     
     static int[] comparePaths(int[] pa, int[] seg) {
+//        if (pa.length > 1)
+//            System.out.println("pa" + Arrays.toString(pa));
         int[] matchLen = new int[2]; //matchLen[0] pa matchLen, matchLen[1] seg matchLen
         int[][] lcsMatch = lcs(pa, seg);
         matchLen[0] = matchLength(pa, lcsMatch[0]);
@@ -560,20 +562,21 @@ public class FindAFS implements Runnable {
         return startStop;
     }
 
-//    static void printAFS(AFSNode afsNode, ArrayList<PathSegment> supportingSegments) {
-//        System.out.println("anchor path: " + afsNode.getAnchorPath());
-//        System.out.println("total support: " + afsNode.support);
-//
-//        for (PathSegment ps : supportingSegments) {
-//            System.out.println("from fasta seq: " + sequences.get(ps.path).label);
-//            System.out.println("support:" + ps.support);
-//            System.out.println("length (nodes): " + (ps.stop - ps.start + 1));
-//            System.out.print("fasta location: ");
-//            int[] startStop = findFastaLoc(ps);
-//            System.out.println(startStop[0] + "," + startStop[1]);
-//        }
-//        System.out.println();
-//    }
+    static void printAFS(AFSNode afsNode, ArrayList<PathSegment> supportingSegments) {
+        System.out.println("anchor path: " + Arrays.toString(afsNode.getAnchorPath()));
+        System.out.println("total support: " + afsNode.support);
+
+        for (PathSegment ps : supportingSegments) {
+            System.out.println("from fasta seq: " + sequences.get(ps.path).label);
+            System.out.println("support:" + ps.support);
+            System.out.println("length (nodes): " + (ps.stop - ps.start + 1));
+            System.out.print("fasta location: ");
+            int[] startStop = findFastaLoc(ps);
+            System.out.println(startStop[0] + "," + startStop[1]);
+        }
+        System.out.println();
+    }
+    
     int findLen(int[] pa) {
         int c = 0;
         for (int i = 0; i < pa.length; i++) {
@@ -596,7 +599,7 @@ public class FindAFS implements Runnable {
             AFSNode top;
             while ((top = afsQ.pollFirst()) != null && count < maxSolns) {
                 ArrayList<PathSegment> supportingSegments = computeSupport(top);
-                //printAFS(top, supportingSegments);
+                printAFS(top, supportingSegments);
                 int[] pa = top.getAnchorPath();
                 BufferedWriter afsOut = new BufferedWriter(new FileWriter(filePrefix + paramString + "-afs-" + count + ".fa"));
                 afsOut.write(">afs-" + count + " support: " + top.support + " length: " + findLen(pa) + "\n");
