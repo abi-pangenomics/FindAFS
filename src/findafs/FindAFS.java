@@ -36,7 +36,7 @@ public class FindAFS implements Runnable {
     static LinkedBlockingQueue<AFSNode> suffixQ;
     static AFSNode[] startNode;
     static int numThreads;
-    static int nodesExpanded = 0;
+    static int nodesAdded = 0;
     static int epsCNodes = 0;
 
     // per thread variables:
@@ -208,10 +208,10 @@ public class FindAFS implements Runnable {
         return m;
     }
 
-    static int[][] set(int[] pa, int[] seg) {
+    static int[][] set(int[] pa, int[] path, int start, int stop) {
         int[][] m = new int[2][];
         m[0] = new int[pa.length]; // m[0][i] == 1 iff pa[i] in LCS
-        m[1] = new int[seg.length]; // m[1][j] == 1 iff seg[j] in LCS
+        m[1] = new int[stop - start + 1]; // m[1][j] == 1 iff path[j+start] in LCS
 
         HashMap<Integer, LinkedList<Integer>> hs = new HashMap<Integer, LinkedList<Integer>>();
         for (int i = 0; i < pa.length; i++) {
@@ -220,20 +220,35 @@ public class FindAFS implements Runnable {
                 hs.get(pa[i]).add(i);
             }
         }
-        for (int i = 0; i < seg.length; i++) {
-            if (hs.containsKey(seg[i]) && !hs.get(seg[i]).isEmpty()) {
-                m[1][i] = 1;
-                m[0][hs.get(seg[i]).pop()] = 1;
+        for (int i = start; i <= stop; i++) {
+            if (hs.containsKey(path[i]) && !hs.get(path[i]).isEmpty()) {
+                m[1][i - start] = 1;
+                m[0][hs.get(path[i]).pop()] = 1;
             }
         }
         return m;
     }
 
-    static int matchLength(int[] path, int[] matched) {
+    static int matchLength(int[] pa, int[] matched) {
         int len = 0;
         int last = -2;
-        for (int i = 0; i < path.length; i++) {
+        for (int i = 0; i < pa.length; i++) {
             if (matched[i] == 1) {
+                len += g.length[pa[i]];
+                if (last == i - 1) {
+                    len -= (K - 1);
+                }
+                last = i;
+            }
+        }
+        return len;
+    }
+
+    static int matchLength(int[] path, int start, int stop, int[] matched) {
+        int len = 0;
+        int last = -2;
+        for (int i = start; i <= stop; i++) {
+            if (matched[i - start] == 1) {
                 len += g.length[path[i]];
                 if (last == i - 1) {
                     len -= (K - 1);
@@ -244,12 +259,12 @@ public class FindAFS implements Runnable {
         return len;
     }
 
-    static int[] comparePaths(int[] pa, int[] seg) {
+    static int[] comparePaths(int[] pa, int[] path, int start, int stop) {
         int[] matchLen = new int[2]; //matchLen[0] pa matchLen, matchLen[1] seg matchLen
-//        int[][] lcsMatch = lcs(pa, seg);
-        int[][] lcsMatch = set(pa, seg);
-        matchLen[0] = matchLength(pa, lcsMatch[0]);
-        matchLen[1] = matchLength(seg, lcsMatch[1]);
+//        int[][] setMatch = lcs(pa, seg);
+        int[][] setMatch = set(pa, path, start, stop);
+        matchLen[0] = matchLength(pa, setMatch[0]);
+        matchLen[1] = matchLength(path, start, stop, setMatch[1]);
         return matchLen;
     }
 
@@ -285,11 +300,11 @@ public class FindAFS implements Runnable {
                 }
             }
             int maxJ = -1;
+            boolean foundNew;
             for (int i = 0; i < matchPos.size(); i++) {
-                boolean foundNew = false;
+                foundNew = false;
                 for (int j = Math.max(i, maxJ + 1); j < matchPos.size(); j++) {
-                    int[] mlength = comparePaths(anchorPath,
-                            Arrays.copyOfRange(testPath, matchPos.get(i), matchPos.get(j) + 1));
+                    int[] mlength = comparePaths(anchorPath, testPath, matchPos.get(i), matchPos.get(j));
                     // mlength[0] = pa match length, malength[1] = seg match length
                     if (mlength[0] >= (1.0 - eps_r) * palength && // check eps_r and mu_i constraints
                             (segLen[i][j] - mlength[1]) <= mu_i * palength) {
@@ -411,7 +426,7 @@ public class FindAFS implements Runnable {
             for (PathSegment ps : supportingSegments) {
                 afsNode.support += ps.support;
             }
-        } else {
+        } else { // check if each pa node is covered:
             TreeSet<Integer> paNodes = new TreeSet<Integer>();
             int[] pa = afsNode.getAnchorPath();
             for (int i = 0; i < pa.length; i++) {
@@ -436,8 +451,8 @@ public class FindAFS implements Runnable {
         }
         afsNode.supportingPaths = new int[supPaths.size()];
         int i = 0;
-        for (Integer iobj : supPaths) {
-            afsNode.supportingPaths[i++] = iobj;
+        for (Integer I : supPaths) {
+            afsNode.supportingPaths[i++] = I;
         }
         return supportingSegments;
     }
@@ -447,7 +462,8 @@ public class FindAFS implements Runnable {
         for (int i = 0; i < g.neighbor[parentNode.node].length; i++) {
             int neighbor = g.neighbor[parentNode.node][i];
             if (g.nodePaths[neighbor] != null
-                    && g.nodePaths[neighbor].length >= (1.0 - eps_c) * minSup) {
+                    && g.nodePaths[neighbor].length >= (1.0 - eps_c) * minSup
+                    && !parentNode.pathContains(neighbor)) {
                 AFSNode newNode = new AFSNode();
                 newNode.node = neighbor;
                 newNode.parent = parentNode;
@@ -456,6 +472,10 @@ public class FindAFS implements Runnable {
                 computeSupport(newNode, false);
                 frontierQ.add(newNode);
                 bestQ.add(newNode);
+                nodesAdded++;
+                if (nodesAdded % 1000 == 0) {
+                    System.out.println("nodes added: " + nodesAdded);
+                }
             }
         }
         parentNode.child = new AFSNode[children.size()];
@@ -487,12 +507,9 @@ public class FindAFS implements Runnable {
         }
 
         AFSNode top;
-        while ((top = frontierQ.poll()) != null && nodesExpanded < maxExploreNodes) {
+        while ((top = frontierQ.poll()) != null && nodesAdded < maxExploreNodes) {
             expand(top);
-            nodesExpanded++;
-            if (nodesExpanded % 20000 == 0) {
-                System.out.println("nodes expanded: " + nodesExpanded);
-            }
+            System.out.println("expanded node: " + top + " parent: " + top.parent + " nodes: " + nodesAdded);
         }
         while ((top = bestQ.poll()) != null && epsCNodes < 10 * maxSolns) {
             computeSupport(top, true);
