@@ -101,10 +101,10 @@ public class FindAFS implements Runnable {
             seqEnd = seqStart + s.length - 1;
 
             curStart = seqStart;
-            while (startToNode.get(curStart) == null) {
-                curStart++;
-                System.out.println("Problem: curStart: " + curStart);
-            }
+//            while (startToNode.get(curStart) == null) {
+//                curStart++;
+//                System.out.println("Problem: curStart: " + curStart);
+//            }
             ArrayList path = new ArrayList<Integer>();
             while (curStart + g.length[startToNode.get(curStart)] - 1 < seqEnd) {
                 path.add(startToNode.get(curStart));
