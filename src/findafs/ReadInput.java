@@ -5,8 +5,6 @@
  */
 package findafs;
 
-import java.io.FileInputStream;
-import java.io.BufferedInputStream;
 import java.io.*;
 import java.util.Scanner;
 import java.util.TreeSet;
@@ -27,7 +25,8 @@ public class ReadInput {
         TreeMap<Integer, Integer> nodeLength = new TreeMap<Integer, Integer>();
         g.maxStart = 0;
 
-        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(new BufferedInputStream (new FileInputStream(fileName))));
             String line;
             while ((line = br.readLine()) != null) {
                 Scanner lineScanner;
@@ -93,8 +92,12 @@ public class ReadInput {
     }
 
     public static ArrayList<Sequence> readFastaFile(String fileName) {
+        int numSeqRead = 0;
         ArrayList<Sequence> sequences = new ArrayList<Sequence>();
-        try (BufferedReader br = new BufferedReader(new FileReader(fileName))) {
+        System.out.println("reading fasta file");
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(new BufferedInputStream (new FileInputStream(fileName))));
+            //BufferedReader br = new BufferedReader(new FileReader(fileName));
             String line;
             while ((line = br.readLine()) != null) {
                 if (line.contains(">")) { // new sequence
@@ -102,11 +105,11 @@ public class ReadInput {
                     Sequence nextSeq = new Sequence();
                     nextSeq.label = label.split(" ")[0]; // get what is left of first space
                     nextSeq.seq = "";
-                    nextSeq.length = 0;
                     sequences.add(nextSeq);
+                    numSeqRead++;
+                    if (numSeqRead % 100 == 0) System.out.println("read seq: " + numSeqRead);
                 } else { // sequence
                     Sequence lastSeq = sequences.get(sequences.size() - 1);
-                    lastSeq.length += line.length();
                     lastSeq.seq += line.toUpperCase();
                 }
             }
