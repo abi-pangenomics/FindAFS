@@ -53,6 +53,7 @@ public class FindAFS implements Runnable {
     static int maxExploreNodes;
     static int maxSolns;
     static double minSup;
+    static int maxSegPPath;
 
     static void readData() {
         g = ReadInput.readDotFile(filePrefix + ".dot");
@@ -99,12 +100,7 @@ public class FindAFS implements Runnable {
         for (Sequence s : sequences) {
             s.startPos = seqStart;
             seqEnd = seqStart + s.length - 1;
-
             curStart = seqStart;
-//            while (startToNode.get(curStart) == null) {
-//                curStart++;
-//                System.out.println("Problem: curStart: " + curStart);
-//            }
             ArrayList path = new ArrayList<Integer>();
             while (curStart + g.length[startToNode.get(curStart)] - 1 < seqEnd) {
                 path.add(startToNode.get(curStart));
@@ -144,14 +140,11 @@ public class FindAFS implements Runnable {
         for (int i = 0; i < g.numNodes; i++) {
             len[i] = 0;
         }
-
         for (int i = 0; i < paths.length; i++) {
             for (int j = 0; j < paths[i].length; j++) {
                 len[paths[i][j]]++;
             }
-            //System.bedOut.println("path " + i + ": " + Arrays.toString(paths[i]));
         }
-
         g.nodePaths = new int[g.numNodes][];
         for (int i = 0; i < g.numNodes; i++) {
             g.nodePaths[i] = new int[len[i]];
@@ -170,7 +163,7 @@ public class FindAFS implements Runnable {
         }
     }
 
-    static int[][] lcs(int[] pa, int[] seg) {
+    static int[][] lcs(int[] pa, int[] seg) { // needs to be updated to only use matching nodes..
         int[][] m = new int[2][];
         m[0] = new int[pa.length]; // m[0][i] == 1 iff pa[i] in LCS
         m[1] = new int[seg.length]; // m[1][j] == 1 iff seg[j] in LCS
@@ -292,22 +285,6 @@ public class FindAFS implements Runnable {
             if (matchPos.isEmpty()) {
                 break;
             }
-//            int[][] segLen = new int[matchPos.size()][matchPos.size()];
-//            for (int d = 0; d < matchPos.size(); d++) {
-//                for (int i = 0; i < matchPos.size() - d; i++) {
-//                    int j = i + d;
-//                    if (d == 0) {
-//                        segLen[i][j] = g.length[testPath[matchPos.get(i)]];
-//                    } else if (d == 1) {
-//                        segLen[i][j] = (K - 1);
-//                        for (int k = matchPos.get(i); k <= matchPos.get(j); k++) {
-//                            segLen[i][j] += g.length[testPath[k]] - (K - 1);
-//                        }
-//                    } else {
-//                        segLen[i][j] = segLen[i][j - 1] + segLen[j - 1][j] - segLen[j - 1][j - 1];
-//                    }
-//                }
-//            }
             int maxJ = -1;
             boolean foundNew;
             int curStart = 1;
@@ -323,9 +300,6 @@ public class FindAFS implements Runnable {
                         curEnd += g.length[testPath[k]] - (K - 1);
                     }
                     int segLength = (curEnd - curStart + 1);
-//                    if ((curEnd - curStart + 1) != segLen[i][j]) {
-//                        System.out.println("length problem");
-//                    }
                     prevJ = j;
                     int[] mlength = comparePaths(anchorPath, testPath, matchPos, i, j);
                     // mlength[0] = pa match length, malength[1] = seg match length
@@ -345,8 +319,7 @@ public class FindAFS implements Runnable {
                     ps.support = 0.0;
                     segList.add(ps);
                     foundCount++;
-                    if (foundCount >= 10) // at most 10 segments per path
-                    {
+                    if (foundCount >= maxSegPPath) {
                         break;
                     }
                 }
@@ -444,7 +417,7 @@ public class FindAFS implements Runnable {
         }
     }
 
-    ArrayList<PathSegment> computeSupport(AFSNode afsNode, boolean useEpsC) {
+    ArrayList<PathSegment> computeSupport(AFSNode afsNode) {
         TreeSet<Integer> pathSet = new TreeSet<Integer>();
         for (int i = 0; i < g.nodePaths[afsNode.node].length; i++) {
             pathSet.add(g.nodePaths[afsNode.node][i]);
@@ -454,32 +427,11 @@ public class FindAFS implements Runnable {
                 pathSet.add(p);
             }
         }
-
         ArrayList<PathSegment> supportingSegments = findMaximalSegments(afsNode, pathSet);
-        if (useEpsC) {
-            epsCFilter(afsNode, supportingSegments);
-            afsNode.support = (float) 0.0;
-            for (PathSegment ps : supportingSegments) {
-                afsNode.support += ps.support;
-            }
-        } else { // check if each pa node is covered:
-            TreeSet<Integer> paNodes = new TreeSet<Integer>();
-            int[] pa = afsNode.getAnchorPath();
-            for (int i = 0; i < pa.length; i++) {
-                paNodes.add(pa[i]);
-            }
-            TreeSet<Integer> allSegNodes = new TreeSet<Integer>();
-            for (PathSegment ps : supportingSegments) {
-                for (int i = ps.start; i <= ps.stop; i++) {
-                    allSegNodes.add(paths[ps.path][i]);
-                }
-            }
-            paNodes.removeAll(allSegNodes);
-            if (paNodes.isEmpty()) {
-                afsNode.support = (float) supportingSegments.size();
-            } else {
-                afsNode.support = (float) 0.0;
-            }
+        epsCFilter(afsNode, supportingSegments);
+        afsNode.support = (float) 0.0;
+        for (PathSegment ps : supportingSegments) {
+            afsNode.support += ps.support;
         }
         TreeSet<Integer> supPaths = new TreeSet<Integer>();
         for (PathSegment ps : supportingSegments) {
@@ -507,7 +459,7 @@ public class FindAFS implements Runnable {
                 newNode.parent = parentNode;
                 newNode.child = null;
                 children.add(newNode);
-                computeSupport(newNode, true);
+                computeSupport(newNode);
                 frontierQ.add(newNode);
                 //bestQ.add(newNode);
             }
@@ -527,7 +479,7 @@ public class FindAFS implements Runnable {
                 AFSNode newNode = new AFSNode();
                 newNode.parent = null;
                 newNode.node = nextNodeToAdd;
-                computeSupport(newNode, false);
+                computeSupport(newNode);
                 if (newNode.support >= (1.0 - eps_c) * minSup) {
                     frontierQ.add(newNode);
                     //bestQ.add(newNode);
@@ -700,7 +652,7 @@ public class FindAFS implements Runnable {
             int count = 0;
             AFSNode top;
             while ((top = afsQ.pollFirst()) != null && count < maxSolns) {
-                ArrayList<PathSegment> supportingSegments = computeSupport(top, true);
+                ArrayList<PathSegment> supportingSegments = computeSupport(top);
 //                printAFS(top, supportingSegments);
                 int[] pa = top.getAnchorPath();
                 BufferedWriter afsOut = new BufferedWriter(new FileWriter(filePrefix + paramString + "-afs-" + count + ".fa"));
@@ -731,8 +683,6 @@ public class FindAFS implements Runnable {
                 for (PathSegment ps : supportingSegments) {
                     if (ps.support > 0.0) {
                         String name = sequences.get(ps.path).label;
-//                        if (ps.start > 0) ps.start--; // see the mismatch at the front
-//                        if (ps.stop < (paths[ps.path].length-1)) ps.stop++; // see the mismatch at the end 
                         int[] startStop = findFastaLoc(ps);
                         bedOut.write(
                                 name // chrom
@@ -797,16 +747,9 @@ public class FindAFS implements Runnable {
     }
 
     public static void main(String[] args) {
-
-//        int[] x = {1, 1, 4, 5};
-//        int[] y = {1, 2, 1, 5, 5};
-//        int[][] m = lcs(x,y);
-//        System.out.println(Arrays.toString(m[0]));
-//        System.out.println(Arrays.toString(m[1]));
-//        System.exit(0);
         // parse args:
-        if (args.length != 8) {
-            System.out.println("Usage: java findAFS K eps_r mu_i eps_c minSup filePrefix maxExploreNodes maxSolns");
+        if (args.length != 9) {
+            System.out.println("Usage: java findAFS K eps_r mu_i eps_c minSup filePrefix maxExploreNodes maxSolns maxSegPPath");
             System.out.println(Arrays.toString(args));
             System.exit(0);
         }
@@ -818,12 +761,13 @@ public class FindAFS implements Runnable {
         filePrefix = args[5];
         maxExploreNodes = Integer.parseInt(args[6]);
         maxSolns = Integer.parseInt(args[7]);
+        maxSegPPath = Integer.parseInt(args[8]);
+        if (maxSegPPath == -1) maxSegPPath = Integer.MAX_VALUE;
 
         readData();
         buildPaths();
 
         frontierQ = new PriorityBlockingQueue<AFSNode>();
-        //bestQ = new PriorityBlockingQueue<AFSNode>();
         afsQ = new ConcurrentSkipListSet<AFSNode>();
         startNode = new AFSNode[g.numNodes];
         suffixQ = new LinkedBlockingQueue<AFSNode>();
@@ -837,6 +781,5 @@ public class FindAFS implements Runnable {
             next.myThreadNum = i;
             worker[i].start();
         }
-
     }
 }
