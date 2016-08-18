@@ -453,8 +453,8 @@ public class FindAFS implements Runnable {
         for (int i = 0; i < g.neighbor[parentNode.node].length; i++) {
             int neighbor = g.neighbor[parentNode.node][i];
             if (g.nodePaths[neighbor] != null
-                    && g.nodePaths[neighbor].length >= (1.0 - eps_c) * minSup) {
-                // && !parentNode.pathContains(neighbor)) {
+                    && g.nodePaths[neighbor].length >= (1.0 - eps_c) * minSup
+                    && parentNode.node != neighbor) { // avoid repeats
                 AFSNode newNode = new AFSNode();
                 newNode.node = neighbor;
                 newNode.parent = parentNode;
