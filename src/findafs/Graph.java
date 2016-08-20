@@ -21,5 +21,6 @@ public class Graph {
     int maxStart;
     int[] length;
     int[][] nodePaths;
+    boolean[] containsN;
 
 }
