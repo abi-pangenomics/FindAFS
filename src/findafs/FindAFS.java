@@ -112,6 +112,7 @@ public class FindAFS implements Runnable {
 
             fastaConcatLen += 1 + s.seq.length();
         }
+        fastaConcatLen++;
         fastaConcat = new char[fastaConcatLen];
         for (Sequence s : sequences) {
             fastaConcat[s.startPos - 1] = '$';
@@ -120,6 +121,7 @@ public class FindAFS implements Runnable {
             }
             s.seq = null; // no longer needed
         }
+        fastaConcat[fastaConcat.length-1] = '$';
         //System.out.println(Arrays.toString(fastaConcat));
         System.out.println("number of paths: " + pathsAL.size());
 
@@ -160,6 +162,16 @@ public class FindAFS implements Runnable {
         for (int i = 0; i < g.numNodes; i++) {
             if (g.nodePaths[i] != null) {
                 g.nodePaths[i] = removeDuplicates(g.nodePaths[i]);
+            }
+        }
+        g.containsN = new boolean[g.numNodes];
+        for (int i = 0; i < g.numNodes; i++) {
+            g.containsN[i] = false;
+            for (int j = 0; j < g.length[i]; j++) {
+                if (fastaConcat[g.starts[i][0] + j] == 'N') {
+                    g.containsN[i] = true;
+                    break;
+                }
             }
         }
     }
@@ -454,7 +466,8 @@ public class FindAFS implements Runnable {
             int neighbor = g.neighbor[parentNode.node][i];
             if (g.nodePaths[neighbor] != null
                     && g.nodePaths[neighbor].length >= (1.0 - eps_c) * minSup
-                    && parentNode.node != neighbor) { // avoid repeats
+                    && !g.containsN[neighbor]) {
+//                    && parentNode.node != neighbor) { // avoid repeats
                 AFSNode newNode = new AFSNode();
                 newNode.node = neighbor;
                 newNode.parent = parentNode;
@@ -476,7 +489,8 @@ public class FindAFS implements Runnable {
         for (int nextNodeToAdd = 0; nextNodeToAdd < g.numNodes; nextNodeToAdd++) {
             if (nextNodeToAdd % numThreads == myThreadNum
                     && g.nodePaths[nextNodeToAdd] != null
-                    && g.nodePaths[nextNodeToAdd].length >= (1.0 - eps_c) * minSup) {
+                    && g.nodePaths[nextNodeToAdd].length >= (1.0 - eps_c) * minSup
+                    && !g.containsN[nextNodeToAdd]) {
                 AFSNode newNode = new AFSNode();
                 newNode.parent = null;
                 newNode.node = nextNodeToAdd;
