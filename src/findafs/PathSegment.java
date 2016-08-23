@@ -14,4 +14,5 @@ public class PathSegment {
     int start;
     int stop;
     double support;
+    boolean[] paMatch;
 }

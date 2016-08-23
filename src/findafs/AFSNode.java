@@ -25,7 +25,7 @@ public class AFSNode implements Comparable<AFSNode> {
     
 
     public int compareTo(AFSNode other) {
-        return Double.compare(other.support, support);
+        return Float.compare(other.support, support);
     }
 
     public boolean pathContains(int n) {
