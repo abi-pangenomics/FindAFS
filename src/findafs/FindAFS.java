@@ -763,11 +763,12 @@ public class FindAFS implements Runnable {
                     }
                 }
                 count++;
+                if (count % 100 == 0) System.out.println("writing afs: " + count);
                 afsOut.close();
             }
             bedOut.close();
             distOut.close();
-
+            System.out.println("done");
         } catch (Exception ex) {
             ex.printStackTrace();
             System.exit(-1);
